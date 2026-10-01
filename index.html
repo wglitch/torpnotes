@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#173b2c">
+    <meta name="description" content="Lokal gårdskarta, dokumentation och höjdmätning.">
+    <title>TorpNotes</title>
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" href="./icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./vendor/leaflet.css">
+    <link rel="stylesheet" href="./styles.css">
+    <script defer src="./vendor/leaflet.js"></script>
+    <script defer src="./app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brandBlock">
+        <span class="brandMark" aria-hidden="true">T</span>
+        <div>
+          <strong>TorpNotes</strong>
+          <button class="propertyName" id="property-name-button" type="button">Namnlös gård</button>
+        </div>
+      </div>
+      <div class="storageState" id="storage-state" aria-live="polite">
+        <span class="stateDot"></span>
+        Sparat lokalt
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Huvudvyer">
+      <button class="tab active" data-view="map" type="button">Karta</button>
+      <button class="tab" data-view="measure" type="button">Mätning</button>
+      <button class="tab" data-view="data" type="button">Data</button>
+    </nav>
+
+    <main>
+      <section class="view active" id="view-map" aria-labelledby="map-title">
+        <h1 class="srOnly" id="map-title">Gårdskarta</h1>
+        <div class="mapWorkspace">
+          <div class="mapStage">
+            <div id="map"></div>
+            <div class="emptyMap" id="empty-map">
+              <div class="emptyMapInner">
+                <span class="emptyMapIcon" aria-hidden="true">⌖</span>
+                <h2>Lägg in gårdens karta</h2>
+                <p>Använd ett eget flygfoto, en ritning eller en annan bild du har rätt att använda.</p>
+                <button class="primaryButton" id="empty-import-button" type="button">Välj kartbild</button>
+              </div>
+            </div>
+            <div class="mapTools" aria-label="Kartverktyg">
+              <button id="add-point-button" title="Lägg till punkt" type="button">+ Punkt</button>
+              <button id="fit-map-button" title="Visa hela kartbilden" type="button">Visa allt</button>
+              <button id="change-map-button" title="Byt kartbild" type="button">Kartbild</button>
+            </div>
+            <div class="mapHint hidden" id="map-hint">Tryck på kartan där punkten ska ligga.</div>
+          </div>
+
+          <aside class="objectPanel">
+            <div class="panelHeading">
+              <div>
+                <span class="eyebrow">Kartobjekt</span>
+                <h2>Punkter</h2>
+              </div>
+              <span class="countBadge" id="item-count">0</span>
+            </div>
+            <div class="objectList" id="object-list"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view contentView" id="view-measure" aria-labelledby="measure-title">
+        <div class="contentHeader">
+          <div>
+            <span class="eyebrow">Rotationslaser och nivellering</span>
+            <h1 id="measure-title">Höjdmätning</h1>
+            <p>Spara det du läser på stången. TorpNotes räknar höjderna relativt fixpunkten.</p>
+          </div>
+          <button class="primaryButton" id="new-session-button" type="button">Ny mätning</button>
+        </div>
+
+        <div class="measureLayout">
+          <div class="sessionListPanel">
+            <div class="panelHeading compact">
+              <h2>Mätningar</h2>
+              <span class="countBadge" id="session-count">0</span>
+            </div>
+            <div class="sessionList" id="session-list"></div>
+          </div>
+
+          <div class="measureDetail" id="measure-detail">
+            <div class="emptyState">
+              <h2>Ingen mätning vald</h2>
+              <p>Skapa en mätning och etablera instrumentet mot en känd eller antagen fixhöjd.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view contentView" id="view-data" aria-labelledby="data-title">
+        <div class="contentHeader">
+          <div>
+            <span class="eyebrow">Lokal lagring</span>
+            <h1 id="data-title">Data och flytt</h1>
+            <p>All gårdsdata finns bara i den här webbläsaren tills du exporterar den.</p>
+          </div>
+        </div>
+
+        <div class="settingsGrid">
+          <section class="settingsSection">
+            <h2>Gården</h2>
+            <label>
+              Namn
+              <input id="property-name-input" maxlength="80" placeholder="Exempelvis Björkbacken" type="text">
+            </label>
+            <button class="secondaryButton" id="save-property-button" type="button">Spara namn</button>
+          </section>
+
+          <section class="settingsSection">
+            <h2>Export och import</h2>
+            <p>Exportfilen innehåller kartbild, punkter, anteckningar och mätningar.</p>
+            <div class="buttonRow">
+              <button class="primaryButton" id="export-button" type="button">Exportera allt</button>
+              <button class="secondaryButton" id="import-button" type="button">Importera fil</button>
+            </div>
+            <p class="finePrint">Import ersätter den lokala gården efter att du har bekräftat.</p>
+          </section>
+
+          <section class="settingsSection warningSection">
+            <h2>Kartbilder</h2>
+            <p>Du ansvarar för att en importerad kartbild eller ritning får användas. TorpNotes publicerar inte bilden; den sparas lokalt och följer bara med dina exporter.</p>
+          </section>
+
+          <section class="settingsSection dangerSection">
+            <h2>Rensa enheten</h2>
+            <p>Tar bort kartbild, punkter och mätningar från just den här webbläsaren.</p>
+            <button class="dangerButton" id="clear-button" type="button">Radera lokal data</button>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="point-dialog">
+      <form method="dialog" id="point-form">
+        <div class="dialogHeader">
+          <div>
+            <span class="eyebrow">Kartpunkt</span>
+            <h2 id="point-dialog-title">Ny punkt</h2>
+          </div>
+          <button class="iconButton" value="cancel" aria-label="Stäng" type="submit">×</button>
+        </div>
+        <input id="point-id" type="hidden">
+        <label>
+          Namn
+          <input id="point-title" maxlength="100" required type="text">
+        </label>
+        <label>
+          Anteckning
+          <textarea id="point-note" maxlength="2000" rows="4"></textarea>
+        </label>
+        <label>
+          Status
+          <select id="point-status">
+            <option value="info">Information</option>
+            <option value="todo">Att göra</option>
+            <option value="done">Klart</option>
+          </select>
+        </label>
+        <div class="dialogActions">
+          <button class="dangerTextButton hidden" id="delete-point-button" type="button">Radera</button>
+          <span></span>
+          <button class="secondaryButton" value="cancel" type="submit">Avbryt</button>
+          <button class="primaryButton" id="save-point-button" value="default" type="submit">Spara</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="session-dialog">
+      <form method="dialog" id="session-form">
+        <div class="dialogHeader">
+          <div>
+            <span class="eyebrow">Etablering</span>
+            <h2>Ny höjdmätning</h2>
+          </div>
+          <button class="iconButton" value="cancel" aria-label="Stäng" type="submit">×</button>
+        </div>
+        <label>
+          Namn
+          <input id="session-name" maxlength="100" required type="text">
+        </label>
+        <div class="fieldGrid">
+          <label>
+            Fixpunkt
+            <input id="fix-name" maxlength="60" placeholder="FIX-01" required type="text">
+          </label>
+          <label>
+            Fixhöjd (m)
+            <input id="fix-height" inputmode="decimal" placeholder="100,000" required type="text">
+          </label>
+        </div>
+        <label>
+          Avläsning på fix (m)
+          <input id="fix-reading" inputmode="decimal" placeholder="1,325" required type="text">
+        </label>
+        <output class="calculationPreview" id="instrument-preview">Instrumenthöjd visas här</output>
+        <div class="dialogActions end">
+          <button class="secondaryButton" value="cancel" type="submit">Avbryt</button>
+          <button class="primaryButton" id="save-session-button" value="default" type="submit">Starta mätning</button>
+        </div>
+      </form>
+    </dialog>
+
+    <input accept="image/*" class="hidden" id="map-file-input" type="file">
+    <input accept=".torpnotes,.json,application/json" class="hidden" id="import-file-input" type="file">
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

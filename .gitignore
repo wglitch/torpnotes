@@ -1,0 +1,4 @@
+test-output/
+*.torpnotes
+.DS_Store
+Thumbs.db
