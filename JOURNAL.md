@@ -4,7 +4,7 @@ Local-first property documentation that works independently of the TorpNotes ser
 
 # Current Next Step
 
-Field-test transactional layer placement, mobile line/area drawing, and compact object editing with real property drawings.
+Field-test transparent floor plans, zoom-triggered ground-floor context, and dimension annotations with real property drawings.
 
 ---
 
@@ -17,11 +17,13 @@ Built a shared meter coordinate system, floor-aware image layers, calibration, e
 
 Refined the map workspace with offline Lucide icons, a compact app menu, one add-object control, visible draft vertices, transactional layer dragging, layer locate/recovery controls, collapsed technical settings, a one-click status cycle with undo, and a dedicated factual height-point view.
 
+Replaced mobile-unsafe layer blending with generated transparent previews that preserve the originals, added zoom-dependent floor-plan context on the site map, and introduced dimension objects with calculated or manually entered values and measurement provenance.
+
 Learned:
 Floor membership and measured height must remain separate, while every image and object uses the same property-local horizontal coordinates.
 
 Next:
-Field-test layer placement, line and area drawing, and object editing with real maps and floor plans on a phone.
+Field-test white-threshold adjustment, contextual floor visibility, and dimensions with real maps and floor plans on a phone.
 
 Open Questions:
 How should a future GPS anchor and multi-device synchronization expose uncertainty and conflicts?

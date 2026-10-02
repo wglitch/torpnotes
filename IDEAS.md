@@ -20,3 +20,4 @@
 - Add custom floor names and nominal floor elevations.
 - Add line width, dash pattern, and polygon fill controls alongside the current color control.
 - Add a history panel for more than the single immediate undo offered after a status change.
+- Let dimension endpoints snap to and retain relations with named objects such as corners, windows, and walls.

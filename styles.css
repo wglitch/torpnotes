@@ -100,6 +100,7 @@ main, .view { height: calc(100vh - 64px); }
 .objectRow:hover, .sessionRow:hover, .sessionRow.active { background: #f3f5f6; }
 .geometryBadge { align-items: center; background: #e8edf0; border-radius: 4px; color: var(--dark-2); display: flex; flex: 0 0 auto; font-size: 11px; font-weight: 850; height: 27px; justify-content: center; width: 27px; }
 .geometryBadge.heightBadge { background: transparent; font-size: 17px; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
+.geometryBadge.dimensionBadge { background: #edf2f5; color: #27343d; font-size: 16px; }
 .statusMarker { --marker-color: var(--blue); background: var(--marker-color); border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px var(--marker-color); flex: 0 0 auto; height: 14px; width: 14px; }
 .statusMarker.todo { background: transparent; border: 0; border-radius: 0; box-shadow: none; height: 17px; position: relative; width: 18px; }
 .statusMarker.todo::before, .statusMarker.todo::after { clip-path: polygon(50% 0, 100% 100%, 0 100%); content: ""; inset: 0; position: absolute; }
@@ -184,6 +185,13 @@ dialog form { display: grid; gap: 16px; padding: 22px; }
 .heightSummary strong, .heightSummary span { display: block; }
 .heightSummary strong { font-size: 22px; margin-bottom: 5px; }
 .heightSummary span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.dimensionSection { background: #f4f7f8; border-left: 4px solid var(--blue); display: grid; gap: 13px; padding: 13px 14px; }
+.dimensionCalculated { align-items: baseline; display: flex; gap: 10px; justify-content: space-between; }
+.dimensionCalculated span { color: var(--muted); font-size: 12px; }
+.dimensionCalculated strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.thresholdField { background: var(--panel-soft); border: 1px solid var(--line); padding: 10px 12px; }
+.thresholdField output { color: var(--muted); float: right; font-variant-numeric: tabular-nums; }
+.thresholdField input { margin-top: 8px; min-height: 24px; padding: 0; }
 .segmented { display: grid; grid-template-columns: repeat(3,1fr); }
 .segmented label { position: relative; }
 .segmented input { height: 1px; opacity: 0; position: absolute; width: 1px; }
@@ -226,6 +234,9 @@ dialog form { display: grid; gap: 16px; padding: 22px; }
 .leaflet-interactive.object-done { opacity: 0.42; }
 .leaflet-interactive.object-info { stroke: var(--blue); }
 .leaflet-interactive.object-todo { stroke: var(--amber); }
+.leaflet-interactive.object-dimension { stroke: #27343d; }
+.dimensionLabel { background: #fff; border: 1px solid #68717b; box-shadow: 0 1px 4px rgba(32,38,45,0.22); color: var(--dark); font-size: 11px; font-weight: 850; padding: 3px 6px; }
+.dimensionLabel::before { display: none; }
 .vertexHandle { background: #fff; border: 3px solid var(--accent); border-radius: 50%; }
 .draftVertex { background: var(--accent); border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px var(--accent); }
 .calibrationPoint { background: var(--accent); border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px var(--accent); }

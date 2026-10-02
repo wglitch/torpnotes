@@ -43,6 +43,7 @@
                   <button data-tool="point" type="button"><i data-lucide="map-pin"></i><span>Punkt</span></button>
                   <button data-tool="line" type="button"><i data-lucide="route"></i><span>Linje</span></button>
                   <button data-tool="polygon" type="button"><i data-lucide="pentagon"></i><span>Område</span></button>
+                  <button data-tool="dimension" type="button"><i data-lucide="ruler"></i><span>Mått</span></button>
                 </div>
               </div>
               <div class="toolGroup mapActionGroup">
@@ -94,6 +95,11 @@
         <section class="statusSection" id="object-status-section"><span class="fieldLabel">Status</span><button class="statusCycleButton" id="status-cycle-button" type="button"><span class="statusMarker info" id="status-cycle-marker"></span><span id="status-cycle-label">Info</span><i data-lucide="rotate-cw"></i></button></section>
         <fieldset class="choiceField" id="object-category-section"><legend>Kategorier</legend><div class="categoryChoices" id="category-choices"></div></fieldset>
         <section class="heightSummary hidden" id="height-summary"><div id="height-summary-content"></div></section>
+        <section class="dimensionSection hidden" id="dimension-section">
+          <div class="dimensionCalculated"><span>Beräknat från kartan</span><strong id="dimension-calculated">0,00 m</strong></div>
+          <div class="fieldGrid"><label>Visat mått<input id="dimension-value" placeholder="1,98 m eller 198 cm" type="text"></label><label>Källa<select id="dimension-source"><option value="estimated">Uppskattat</option><option value="measured">Inmätt</option><option value="plan">Från ritning</option><option value="manual">Manuellt angivet</option></select></label></div>
+          <p class="formNote">Lämna visat mått tomt för att använda kartans beräknade längd.</p>
+        </section>
         <details class="advancedSettings" id="object-advanced"><summary><i data-lucide="settings-2"></i><span>Placering och utseende</span><i class="disclosureIcon" data-lucide="chevron-down"></i></summary><div class="fieldGrid fourFields"><label>Våningsplan<select id="object-level"></select></label><label>Höjd z (m)<input id="object-z" inputmode="decimal" placeholder="Okänd" type="text"></label><label>Höjdkälla<select id="object-z-source"><option value="unknown">Okänd</option><option value="estimated">Uppskattad</option><option value="inherited">Från våningsplan</option><option value="measured">Inmätt</option></select></label><label>Linje/område<input id="object-color" type="color" value="#356b8c"></label></div></details>
         <section class="attachmentSection"><div class="sectionHeading"><strong>Bilder</strong><label class="fileButton">Lägg till<input accept="image/*" id="object-image-input" multiple type="file"></label></div><div class="attachmentGrid" id="attachment-grid"></div></section>
         <div class="dialogActions objectActions"><button class="dangerTextButton hidden" id="delete-object-button" type="button">Radera</button><button class="secondaryButton hidden" id="edit-geometry-button" type="button">Redigera form</button><span></span><button class="secondaryButton" value="cancel" formnovalidate type="submit">Avbryt</button><button class="primaryButton" id="save-object-button" value="default" type="submit">Spara</button></div>
@@ -107,7 +113,9 @@
         <div class="fieldGrid"><label>Namn<input id="layer-name" maxlength="100" required type="text"></label><label>Våningsplan<select id="layer-level"></select></label></div>
         <div class="fieldGrid threeFields"><label>Skala (m/pixel)<input id="layer-scale" inputmode="decimal" required type="text"></label><label>Rotation (°)<input id="layer-rotation" inputmode="decimal" required type="text"></label><label>Opacitet<input id="layer-opacity" max="1" min="0.1" step="0.05" type="range"></label></div>
         <div class="fieldGrid"><label>Övre vänster X (m)<input id="layer-x" inputmode="decimal" required type="text"></label><label>Övre vänster Y (m)<input id="layer-y" inputmode="decimal" required type="text"></label></div>
-        <div class="checkGrid"><label class="checkRow"><input id="layer-locked" type="checkbox"><span>Lås lagret efter placering</span></label><label class="checkRow"><input id="layer-white-transparent" type="checkbox"><span>Dölj vit bakgrund</span></label></div><p class="formNote" id="layer-scale-note">Skalan kan kalibreras mot ett känt avstånd efter att lagret sparats.</p>
+        <div class="checkGrid"><label class="checkRow"><input id="layer-locked" type="checkbox"><span>Lås lagret efter placering</span></label><label class="checkRow"><input id="layer-white-transparent" type="checkbox"><span>Dölj vit bakgrund</span></label><label class="checkRow" id="layer-site-close-row"><input id="layer-show-on-site-close" type="checkbox"><span>Visa som närbild på Mark</span></label></div>
+        <label class="thresholdField hidden" id="layer-threshold-field">Vithetstolerans <output id="layer-threshold-output">245</output><input id="layer-white-threshold" max="254" min="210" step="1" type="range" value="245"></label>
+        <p class="formNote" id="layer-scale-note">Skalan kan kalibreras mot ett känt avstånd efter att lagret sparats.</p>
         <div class="dialogActions objectActions"><button class="dangerTextButton hidden" id="delete-layer-button" type="button">Radera</button><button class="secondaryButton hidden" id="move-layer-button" type="button">Flytta</button><button class="secondaryButton hidden" id="calibrate-layer-button" type="button">Kalibrera</button><span></span><button class="secondaryButton" value="cancel" formnovalidate type="submit">Avbryt</button><button class="primaryButton" id="save-layer-button" value="default" type="submit">Spara</button></div>
       </form>
     </dialog>

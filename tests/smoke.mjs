@@ -26,6 +26,9 @@ try {
   await page.locator("#layer-white-transparent").check();
   await page.locator("#save-layer-button").click();
   await page.locator("#empty-map").waitFor({ state: "hidden" });
+  await page.locator(".torp-image-layer").waitFor();
+  const blendModes = await page.locator(".torp-image-layer").evaluateAll((images) => images.map((image) => image.style.mixBlendMode));
+  if (blendModes.some((mode) => mode === "multiply")) throw new Error("White-background suppression still uses mobile-unsafe blend modes");
 
   await page.getByRole("button", { name: "Lägg till objekt" }).click();
   await page.getByRole("button", { name: "Punkt", exact: true }).click();
@@ -67,6 +70,20 @@ try {
   await page.locator("#status-cycle-button").click();
   await page.locator("#save-object-button").click();
   await page.locator("#object-list").getByRole("button", { name: /Vattenledning/ }).waitFor();
+
+  await page.getByRole("button", { name: "Lägg till objekt" }).click();
+  await page.getByRole("button", { name: "Mått", exact: true }).click();
+  await page.locator("#map").click({ position: { x: 430, y: 470 } });
+  await page.locator("#map").click({ position: { x: 550, y: 470 } });
+  await page.locator("#finish-draw-button").click();
+  await page.locator("#dimension-section").waitFor({ state: "visible" });
+  await page.locator("#object-title").fill("Köksvägg");
+  await page.locator("#dimension-value").fill("198 cm");
+  await page.locator("#dimension-source").selectOption("measured");
+  await page.screenshot({ path: path.join(output, "desktop-dimension-dialog.png"), fullPage: true });
+  await page.locator("#save-object-button").click();
+  await page.locator(".dimensionLabel").filter({ hasText: "1,980 m" }).waitFor();
+  await page.locator("#object-list").getByRole("button", { name: /Köksvägg/ }).waitFor();
 
   await page.locator("#close-object-panel").click();
   await page.locator("#layer-button").click();
@@ -115,6 +132,23 @@ try {
   await page.locator("[data-layer-edit]").click();
   if (await page.locator("#layer-x").inputValue() !== savedX || await page.locator("#layer-y").inputValue() !== savedY) throw new Error("Cancelled layer move changed the saved position");
   await page.locator("#layer-form").getByRole("button", { name: "Avbryt" }).click();
+
+  await page.locator("#layer-button").click();
+  await page.locator("#add-layer-button").click();
+  await page.locator("#layer-file-input").setInputFiles(path.join(root, "icon.svg"));
+  await page.locator("#layer-name").fill("Bottenvåning");
+  await page.locator("#layer-level").selectOption("ground");
+  await page.locator("#layer-white-transparent").check();
+  await page.locator("#layer-white-threshold").fill("242");
+  if (!await page.locator("#layer-show-on-site-close").isChecked()) throw new Error("Ground-floor layers should default to close-up display on the site map");
+  await page.locator("#save-layer-button").click();
+  await page.locator('[data-level-id="site"]').click();
+  for (let index = 0; index < 6; index += 1) { await page.locator(".leaflet-control-zoom-out").click(); await page.waitForTimeout(100); }
+  if (await page.locator(".torp-image-layer").count() !== 1) throw new Error("Ground-floor close-up layer should be hidden in the full-property view");
+  for (let index = 0; index < 12; index += 1) { await page.locator(".leaflet-control-zoom-in").click(); await page.waitForTimeout(100); }
+  if (await page.locator(".torp-image-layer").count() !== 2) throw new Error("Ground-floor close-up layer should appear when zooming toward the house");
+  const closeUpBlendModes = await page.locator(".torp-image-layer").evaluateAll((images) => images.map((image) => image.style.mixBlendMode));
+  if (closeUpBlendModes.some((mode) => mode === "multiply")) throw new Error("A close-up layer used a mobile-unsafe blend mode");
   await page.screenshot({ path: path.join(output, "desktop-map-v2.png"), fullPage: true });
 
   await page.locator('[data-level-id="ground"]').click();
@@ -156,7 +190,7 @@ try {
   await page.locator("#active-filters").waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "Öppna meny" }).click();
   await page.getByRole("button", { name: "Objekt", exact: true }).click();
-  await page.locator("#item-count").filter({ hasText: "4" }).waitFor();
+  await page.locator("#item-count").filter({ hasText: "5" }).waitFor();
   await page.locator('[data-level-id="site"]').click();
 
   await page.locator("#object-list").getByRole("button", { name: /Vattenledning/ }).click();
@@ -207,7 +241,8 @@ try {
   await mobilePage.getByRole("button", { name: "Data och export" }).click();
   mobilePage.once("dialog", (dialog) => dialog.accept());
   await mobilePage.locator("#import-file-input").setInputFiles(exportPath);
-  await mobilePage.locator("#empty-map").waitFor({ state: "hidden" });
+  await mobilePage.locator("#view-map.active").waitFor();
+  await mobilePage.locator(".torp-image-layer").first().waitFor();
   await mobilePage.screenshot({ path: path.join(output, "mobile-map-v3.png"), fullPage: true });
   await mobilePage.locator("#add-tool-button").click();
   await mobilePage.getByRole("button", { name: "Linje", exact: true }).click();
@@ -223,7 +258,18 @@ try {
   await mobilePage.locator("#level-bar.open").waitFor();
   await mobilePage.locator('[data-level-id="site"]').click();
   await mobilePage.locator("#layer-button").click();
-  await mobilePage.locator("[data-layer-edit]").click();
+  await mobilePage.locator("[data-layer-edit]").first().click();
+  await mobilePage.locator("#layer-white-transparent").uncheck();
+  await mobilePage.locator("#save-layer-button").click();
+  await mobilePage.locator("#layer-button").click();
+  await mobilePage.locator("[data-layer-edit]").first().click();
+  await mobilePage.locator("#layer-white-transparent").check();
+  await mobilePage.locator("#save-layer-button").click();
+  await mobilePage.locator(".torp-image-layer").first().waitFor();
+  const mobileLayerState = await mobilePage.locator(".torp-image-layer").evaluateAll((images) => images.map((image) => ({ blend: image.style.mixBlendMode, loaded: image.naturalWidth > 0 })));
+  if (!mobileLayerState.length || mobileLayerState.some((image) => image.blend === "multiply" || !image.loaded)) throw new Error("Mobile image layers failed after toggling white-background suppression");
+  await mobilePage.locator("#layer-button").click();
+  await mobilePage.locator("[data-layer-edit]").first().click();
   await mobilePage.locator("#move-layer-button").click();
   await mobilePage.locator("#draw-actions").waitFor({ state: "visible" });
   await mobilePage.screenshot({ path: path.join(output, "mobile-layer-move-v3.png"), fullPage: true });
@@ -233,7 +279,7 @@ try {
   await mobilePage.screenshot({ path: path.join(output, "mobile-measurement-v2.png"), fullPage: true });
   await mobile.close();
 
-  console.log("Smoke test passed: calibrated layers, editable point/line/area objects, photos, filters, leveling placement, persistence, export/import, and responsive layouts.");
+  console.log("Smoke test passed: stable transparent layers, contextual floor plans, dimensions, editable map objects, measurements, persistence, export/import, and responsive layouts.");
 } finally {
   await browser.close();
 }

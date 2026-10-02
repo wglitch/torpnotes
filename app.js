@@ -6,6 +6,8 @@ const STORE_NAME = "workspace";
 const STATE_KEY = "current";
 const EXPORT_VERSION = 2;
 const DEFAULT_SCALE = 0.05;
+const DEFAULT_WHITE_THRESHOLD = 245;
+const TRANSPARENT_PREVIEW_MAX_SIDE = 2048;
 
 const DEFAULT_LEVELS = [
   { id: "site", name: "Mark", nominalZ: null },
@@ -66,7 +68,7 @@ const elements = {};
 const RotatedImageLayer = L.Layer.extend({
   initialize(layerData) {
     this.data = layerData;
-    this.url = URL.createObjectURL(layerData.blob);
+    this.url = URL.createObjectURL(layerData.whiteTransparent && layerData.displayBlob ? layerData.displayBlob : layerData.blob);
   },
   onAdd(targetMap) {
     this.map = targetMap;
@@ -78,7 +80,7 @@ const RotatedImageLayer = L.Layer.extend({
     this.image.style.width = `${this.data.width}px`;
     this.image.style.height = `${this.data.height}px`;
     this.image.style.opacity = String(this.data.opacity);
-    this.image.style.mixBlendMode = this.data.whiteTransparent ? "multiply" : "normal";
+    this.image.style.mixBlendMode = "normal";
     this.image.style.pointerEvents = "none";
     this.image.style.zIndex = String(this.data.order || 0);
     targetMap.getPanes().overlayPane.appendChild(this.image);
@@ -119,6 +121,7 @@ async function initialize() {
   if (saved) workspace = normalizeWorkspace(saved);
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => false);
   populateStaticChoices();
+  await ensureTransparentPreviews();
   await renderAll(true);
   refreshIcons();
   registerServiceWorker();
@@ -136,11 +139,11 @@ function bindElements() {
     "save-property-button", "export-button", "import-button", "clear-button", "object-dialog",
     "object-form", "object-kind-label", "object-dialog-title", "object-id", "object-title",
     "object-note", "object-status-section", "status-cycle-button", "status-cycle-marker", "status-cycle-label",
-    "object-category-section", "category-choices", "height-summary", "height-summary-content", "object-advanced", "object-level", "object-z", "object-z-source", "object-color",
+    "object-category-section", "category-choices", "height-summary", "height-summary-content", "dimension-section", "dimension-calculated", "dimension-value", "dimension-source", "object-advanced", "object-level", "object-z", "object-z-source", "object-color",
     "object-image-input", "attachment-grid", "delete-object-button", "edit-geometry-button",
     "layer-dialog", "layer-form", "layer-dialog-title", "layer-id", "layer-file-field",
     "layer-file-input", "layer-name", "layer-level", "layer-scale", "layer-rotation", "layer-opacity",
-    "layer-x", "layer-y", "layer-locked", "layer-white-transparent", "layer-scale-note", "delete-layer-button",
+    "layer-x", "layer-y", "layer-locked", "layer-white-transparent", "layer-white-threshold", "layer-threshold-field", "layer-threshold-output", "layer-site-close-row", "layer-show-on-site-close", "layer-scale-note", "delete-layer-button",
     "move-layer-button", "calibrate-layer-button", "calibration-dialog", "calibration-form",
     "calibration-summary", "calibration-distance", "filter-dialog", "filter-form", "filter-statuses",
     "filter-categories", "clear-filters-button", "session-dialog", "session-form", "session-name",
@@ -179,6 +182,12 @@ function bindEvents() {
   elements.deleteObjectButton.addEventListener("click", deleteCurrentObject);
   elements.editGeometryButton.addEventListener("click", beginGeometryEdit);
   elements.layerForm.addEventListener("submit", handleLayerSubmit);
+  elements.layerWhiteTransparent.addEventListener("change", updateLayerOptionVisibility);
+  elements.layerWhiteThreshold.addEventListener("input", () => { elements.layerThresholdOutput.value = elements.layerWhiteThreshold.value; });
+  elements.layerLevel.addEventListener("change", () => {
+    if (!elements.layerId.value && elements.layerLevel.value === "ground") elements.layerShowOnSiteClose.checked = true;
+    updateLayerOptionVisibility();
+  });
   elements.deleteLayerButton.addEventListener("click", deleteCurrentLayer);
   elements.calibrateLayerButton.addEventListener("click", beginCalibration);
   elements.moveLayerButton.addEventListener("click", beginLayerMove);
@@ -211,8 +220,9 @@ function initializeMap() {
   map.setView([0, 0], 0);
   map.on("click", handleMapClick);
   map.on("dblclick", () => {
-    if (activeTool === "line" || activeTool === "polygon") finishMapAction();
+    if (["line", "polygon", "dimension"].includes(activeTool)) finishMapAction();
   });
+  map.on("zoomend", () => { if (activeLevelId === "site") renderMapLayers(); });
 }
 
 function populateStaticChoices() {
@@ -264,7 +274,8 @@ function renderMapLayers() {
   mapImageLayers.forEach((layer) => layer.remove());
   mapImageLayers = new Map();
   visibleLayers().sort((a, b) => (a.order || 0) - (b.order || 0)).forEach((layerData) => {
-    const displayData = moveLayerState?.layerId === layerData.id ? moveLayerState.preview : layerData;
+    let displayData = moveLayerState?.layerId === layerData.id ? moveLayerState.preview : layerData;
+    if (isContextualLayer(layerData)) displayData = { ...displayData, opacity: Math.min(displayData.opacity, 0.82) };
     if (!(displayData.blob instanceof Blob)) return;
     const layer = new RotatedImageLayer(displayData).addTo(map);
     mapImageLayers.set(layerData.id, layer);
@@ -280,7 +291,7 @@ function renderLayerList() {
   elements.layerList.innerHTML = layers.map((layer) => `
     <div class="layerRow ${layer.visible ? "" : "hiddenLayer"}">
       <label class="layerVisibility" title="Visa eller dölj"><input data-layer-visible="${escapeHtml(layer.id)}" ${layer.visible ? "checked" : ""} type="checkbox"></label>
-      <div class="layerMeta"><strong>${escapeHtml(layer.name)}</strong><small>${escapeHtml(levelName(layer.levelId))} · ${formatScale(layer.metersPerPixel)}${layer.scaleEstimated ? " · ungefärlig" : ""}${layer.locked ? " · låst" : ""}</small></div>
+      <div class="layerMeta"><strong>${escapeHtml(layer.name)}</strong><small>${escapeHtml(levelName(layer.levelId))} · ${formatScale(layer.metersPerPixel)}${layer.scaleEstimated ? " · ungefärlig" : ""}${layer.locked ? " · låst" : ""}${layer.showOnSiteClose && layer.levelId !== "site" ? " · närbild på Mark" : ""}</small></div>
       <div class="layerActions">
         <button class="layerAction" data-layer-locate="${escapeHtml(layer.id)}" aria-label="Visa ${escapeHtml(layer.name)}" title="Visa lagret" type="button"><i data-lucide="locate-fixed"></i></button>
         <button class="layerAction" data-layer-recover="${escapeHtml(layer.id)}" aria-label="Centrera ${escapeHtml(layer.name)}" title="Centrera lagret här" type="button"><i data-lucide="crosshair"></i></button>
@@ -318,7 +329,8 @@ function renderMapObjects() {
     }
     layer.addTo(map);
     if (interactive) layer.on("click", (event) => { L.DomEvent.stopPropagation(event); openObjectDialog(item); });
-    layer.bindTooltip(item.title, { direction: "top", offset: [0, -8] });
+    if (item.kind === "dimension") layer.bindTooltip(dimensionDisplay(item), { permanent: true, direction: "center", className: "dimensionLabel" });
+    else layer.bindTooltip(item.title, { direction: "top", offset: [0, -8] });
     mapObjectLayers.set(item.id, layer);
   });
 }
@@ -351,8 +363,8 @@ function renderObjectList() {
   }
   elements.objectList.innerHTML = items.map((item) => `
     <button class="objectRow" data-item-id="${escapeHtml(item.id)}" type="button">
-      ${item.kind === "height" ? '<span class="geometryBadge heightBadge">T</span>' : `<span class="geometryBadge">${geometrySymbol(item.geometryType)}</span><span class="statusMarker ${escapeHtml(item.status)}" style="--marker-color:${itemSystemColor(item)}"></span>`}
-      <span class="rowText"><strong>${escapeHtml(item.title)}</strong><small>${item.kind === "height" ? "Höjdpunkt" : escapeHtml(statusLabel(item.status))}${item.categories.length ? ` · ${item.categories.map(categoryName).join(", ")}` : ""}${Number.isFinite(item.z) ? ` · z ${formatNumber(item.z)}` : ""}</small></span>
+      ${item.kind === "height" ? '<span class="geometryBadge heightBadge">T</span>' : item.kind === "dimension" ? '<span class="geometryBadge dimensionBadge">↔</span>' : `<span class="geometryBadge">${geometrySymbol(item.geometryType)}</span><span class="statusMarker ${escapeHtml(item.status)}" style="--marker-color:${itemSystemColor(item)}"></span>`}
+      <span class="rowText"><strong>${escapeHtml(item.title)}</strong><small>${item.kind === "height" ? "Höjdpunkt" : item.kind === "dimension" ? `Mått · ${dimensionDisplay(item)} · ${measurementSourceLabel(item.measurementSource)}` : escapeHtml(statusLabel(item.status))}${item.categories.length ? ` · ${item.categories.map(categoryName).join(", ")}` : ""}${Number.isFinite(item.z) ? ` · z ${formatNumber(item.z)}` : ""}</small></span>
     </button>`).join("");
   elements.objectList.querySelectorAll("[data-item-id]").forEach((button) => button.addEventListener("click", () => {
     const item = workspace.items.find((candidate) => candidate.id === button.dataset.itemId);
@@ -401,7 +413,8 @@ function handleMapClick(event) {
     openObjectDialog();
     return;
   }
-  if (activeTool === "line" || activeTool === "polygon") {
+  if (["line", "polygon", "dimension"].includes(activeTool)) {
+    if (activeTool === "dimension" && draftGeometry.length >= 2) return;
     draftGeometry.push(point);
     renderDraft();
     return;
@@ -416,11 +429,11 @@ function handleMapClick(event) {
 }
 
 function setTool(tool) {
-  if (["point", "line", "polygon"].includes(tool) && !workspace.layers.length) {
+  if (["point", "line", "polygon", "dimension"].includes(tool) && !workspace.layers.length) {
     showToast("Lägg till ett bildlager först.");
     return;
   }
-  if (["point", "line", "polygon"].includes(tool) && activeLevelId === "all") {
+  if (["point", "line", "polygon", "dimension"].includes(tool) && activeLevelId === "all") {
     elements.levelBar.classList.add("open");
     showToast("Välj ett plan innan du ritar.");
     return;
@@ -429,14 +442,14 @@ function setTool(tool) {
   clearTransientMapState();
   activeTool = tool;
   document.querySelectorAll("[data-tool]").forEach((button) => button.classList.toggle("active", button.dataset.tool === tool));
-  const drawing = tool === "line" || tool === "polygon";
+  const drawing = ["line", "polygon", "dimension"].includes(tool);
   elements.drawActions.classList.toggle("hidden", !drawing);
   elements.undoDrawButton.classList.toggle("hidden", !drawing);
   elements.finishDrawButton.classList.toggle("hidden", !drawing);
   elements.finishDrawButton.disabled = true;
   elements.undoDrawButton.disabled = true;
   elements.mapHint.classList.toggle("hidden", tool === "select");
-  elements.mapHint.textContent = tool === "point" ? "Tryck där punkten ska ligga." : tool === "line" ? "Tryck ut linjens brytpunkter och välj Klar." : tool === "polygon" ? "Tryck ut områdets hörn och välj Klar." : "";
+  elements.mapHint.textContent = tool === "point" ? "Tryck där punkten ska ligga." : tool === "line" ? "Tryck ut linjens brytpunkter och välj Klar." : tool === "polygon" ? "Tryck ut områdets hörn och välj Klar." : tool === "dimension" ? "Tryck på måttets två ändpunkter." : "";
   map.getContainer().style.cursor = tool === "select" ? "grab" : "crosshair";
   refreshMobileChrome();
   renderMapObjects();
@@ -448,15 +461,17 @@ function renderDraft() {
   draftVertexMarkers = [];
   const coordinates = draftGeometry.map((point) => [point.y, point.x]);
   if (activeTool === "polygon" && coordinates.length > 1) draftLayer = L.polygon(coordinates, { color: "#b34c3d", fillOpacity: 0.15, dashArray: "6 4", interactive: false }).addTo(map);
-  else draftLayer = L.polyline(coordinates, { color: "#b34c3d", weight: 3, dashArray: "6 4", interactive: false }).addTo(map);
+  else draftLayer = L.polyline(coordinates, { color: activeTool === "dimension" ? "#27343d" : "#b34c3d", weight: 3, dashArray: "6 4", interactive: false }).addTo(map);
   draftVertexMarkers = draftGeometry.map((point) => L.marker([point.y, point.x], { icon: L.divIcon({ className: "draftVertex", iconSize: [14, 14], iconAnchor: [7, 7] }), interactive: false, zIndexOffset: 1000 }).addTo(map));
   elements.finishDrawButton.disabled = activeTool === "polygon" ? draftGeometry.length < 3 : draftGeometry.length < 2;
   elements.undoDrawButton.disabled = draftGeometry.length === 0;
-  elements.mapHint.textContent = `${activeTool === "polygon" ? "Område" : "Linje"} · ${draftGeometry.length} ${draftGeometry.length === 1 ? "punkt" : "punkter"}`;
+  elements.mapHint.textContent = activeTool === "dimension"
+    ? `Mått · ${draftGeometry.length}/2${draftGeometry.length === 2 ? ` · ${formatMeters(distanceBetween(draftGeometry[0], draftGeometry[1]))}` : ""}`
+    : `${activeTool === "polygon" ? "Område" : "Linje"} · ${draftGeometry.length} ${draftGeometry.length === 1 ? "punkt" : "punkter"}`;
 }
 
 function undoDraftPoint() {
-  if (!draftGeometry.length || !["line", "polygon"].includes(activeTool)) return;
+  if (!draftGeometry.length || !["line", "polygon", "dimension"].includes(activeTool)) return;
   draftGeometry.pop();
   renderDraft();
 }
@@ -470,8 +485,8 @@ function finishMapAction() {
     finishLayerMove(true);
     return;
   }
-  if ((activeTool === "line" && draftGeometry.length >= 2) || (activeTool === "polygon" && draftGeometry.length >= 3)) {
-    pendingObject = { geometryType: activeTool, geometry: draftGeometry.map(copyPoint) };
+  if ((["line", "dimension"].includes(activeTool) && draftGeometry.length >= 2) || (activeTool === "polygon" && draftGeometry.length >= 3)) {
+    pendingObject = { kind: activeTool === "dimension" ? "dimension" : "standard", geometryType: activeTool === "dimension" ? "line" : activeTool, geometry: draftGeometry.map(copyPoint) };
     openObjectDialog();
   }
 }
@@ -499,9 +514,9 @@ function clearTransientMapState() {
 }
 
 function syncToolUi() {
-  elements.addToolButton.classList.toggle("active", ["point", "line", "polygon"].includes(activeTool));
-  elements.drawActions.classList.toggle("hidden", !["line", "polygon", "edit", "moveLayer"].includes(activeTool));
-  elements.undoDrawButton.classList.toggle("hidden", !["line", "polygon"].includes(activeTool));
+  elements.addToolButton.classList.toggle("active", ["point", "line", "polygon", "dimension"].includes(activeTool));
+  elements.drawActions.classList.toggle("hidden", !["line", "polygon", "dimension", "edit", "moveLayer"].includes(activeTool));
+  elements.undoDrawButton.classList.toggle("hidden", !["line", "polygon", "dimension"].includes(activeTool));
   elements.mapHint.classList.toggle("hidden", activeTool === "select");
   map.getContainer().style.cursor = activeTool === "select" ? "grab" : "crosshair";
   refreshMobileChrome();
@@ -515,29 +530,35 @@ function openObjectDialog(item = null) {
   const source = item || pendingObject;
   if (!source) return;
   const isHeight = source.kind === "height";
+  const isDimension = source.kind === "dimension";
+  const calculatedDimension = isDimension ? geometryLength(source.geometry) : null;
   releaseAttachmentUrls();
   elements.objectForm.reset();
   elements.objectId.value = item?.id || "";
-  elements.objectTitle.value = item?.title || "";
+  elements.objectTitle.value = item?.title || (isDimension ? `Mått ${formatMeters(calculatedDimension)}` : "");
   elements.objectNote.value = item?.note || "";
   elements.objectLevel.value = item?.levelId || (activeLevelId === "all" ? "site" : activeLevelId);
   elements.objectZ.value = Number.isFinite(item?.z) ? formatInputNumber(item.z) : "";
   elements.objectZSource.value = item?.zSource || "unknown";
   elements.objectColor.value = item?.color || "#356b8c";
+  elements.dimensionCalculated.textContent = isDimension ? formatMeters(calculatedDimension) : "";
+  elements.dimensionValue.value = Number.isFinite(item?.dimensionValue) ? formatInputNumber(item.dimensionValue) : "";
+  elements.dimensionSource.value = item?.measurementSource || "estimated";
   dialogStatus = item?.status || "info";
   renderStatusCycle();
   const categories = new Set(item?.categories || []);
   elements.categoryChoices.querySelectorAll("[data-object-category]").forEach((input) => { input.checked = categories.has(input.dataset.objectCategory); });
   editingAttachments = (item?.attachments || []).map((attachment) => ({ ...attachment }));
-  elements.objectKindLabel.textContent = isHeight ? "Höjdpunkt" : geometryLabel(source.geometryType);
-  elements.objectDialogTitle.textContent = item ? item.title : `Nytt ${geometryLabel(source.geometryType).toLowerCase()}`;
+  elements.objectKindLabel.textContent = isHeight ? "Höjdpunkt" : isDimension ? "Mått" : geometryLabel(source.geometryType);
+  elements.objectDialogTitle.textContent = item ? item.title : isDimension ? "Nytt mått" : source.geometryType === "line" ? "Ny linje" : source.geometryType === "polygon" ? "Nytt område" : "Ny punkt";
   elements.deleteObjectButton.classList.toggle("hidden", !item);
   elements.editGeometryButton.classList.toggle("hidden", !item);
-  elements.objectStatusSection.classList.toggle("hidden", isHeight);
-  elements.objectCategorySection.classList.toggle("hidden", isHeight);
+  elements.objectStatusSection.classList.toggle("hidden", isHeight || isDimension);
+  elements.objectCategorySection.classList.toggle("hidden", isHeight || isDimension);
   elements.objectAdvanced.classList.toggle("hidden", isHeight);
   elements.objectAdvanced.open = false;
   elements.heightSummary.classList.toggle("hidden", !isHeight);
+  elements.dimensionSection.classList.toggle("hidden", !isDimension);
   if (isHeight) renderHeightSummary(item || source);
   renderAttachments();
   elements.objectDialog.showModal();
@@ -605,18 +626,27 @@ async function handleObjectSubmit(event) {
   const source = existing || pendingObject;
   if (!source) return;
   const isHeight = source.kind === "height";
+  const isDimension = source.kind === "dimension";
   const z = parseDecimal(elements.objectZ.value);
+  const dimensionValue = parseLength(elements.dimensionValue.value);
+  if (isDimension && elements.dimensionValue.value.trim() && !Number.isFinite(dimensionValue)) {
+    showToast("Ange måttet som exempelvis 1,98 m eller 198 cm.");
+    return;
+  }
   const item = {
     ...source,
     id: existing?.id || newId(),
     title: elements.objectTitle.value.trim(),
     note: elements.objectNote.value.trim(),
-    status: isHeight ? "info" : dialogStatus,
-    categories: isHeight ? [] : [...elements.categoryChoices.querySelectorAll("[data-object-category]:checked")].map((input) => input.dataset.objectCategory),
+    kind: isDimension ? "dimension" : isHeight ? "height" : "standard",
+    status: isHeight || isDimension ? "info" : dialogStatus,
+    categories: isHeight || isDimension ? [] : [...elements.categoryChoices.querySelectorAll("[data-object-category]:checked")].map((input) => input.dataset.objectCategory),
     levelId: isHeight ? "site" : elements.objectLevel.value,
     z: isHeight ? source.z : Number.isFinite(z) ? z : null,
     zSource: isHeight ? "measured" : Number.isFinite(z) ? elements.objectZSource.value : "unknown",
     color: elements.objectColor.value,
+    dimensionValue: isDimension && Number.isFinite(dimensionValue) ? dimensionValue : null,
+    measurementSource: isDimension ? elements.dimensionSource.value : null,
     attachments: editingAttachments,
     relations: existing?.relations || [],
     createdAt: existing?.createdAt || nowIso(),
@@ -756,11 +786,23 @@ function openLayerDialog(layer = null) {
   elements.layerY.value = formatInputNumber(layer?.y ?? 0);
   elements.layerLocked.checked = layer?.locked ?? true;
   elements.layerWhiteTransparent.checked = layer?.whiteTransparent ?? false;
+  elements.layerWhiteThreshold.value = String(layer?.whiteThreshold ?? DEFAULT_WHITE_THRESHOLD);
+  elements.layerThresholdOutput.value = elements.layerWhiteThreshold.value;
+  elements.layerShowOnSiteClose.checked = layer?.showOnSiteClose ?? elements.layerLevel.value === "ground";
+  updateLayerOptionVisibility();
   elements.layerScaleNote.textContent = layer?.scaleEstimated ? "Skalan är ungefärlig. Kalibrera mot ett känt avstånd." : "Skalan är kalibrerad eller manuellt angiven.";
   elements.deleteLayerButton.classList.toggle("hidden", !layer);
   elements.calibrateLayerButton.classList.toggle("hidden", !layer);
   elements.moveLayerButton.classList.toggle("hidden", !layer);
   elements.layerDialog.showModal();
+}
+
+function updateLayerOptionVisibility() {
+  const transparent = elements.layerWhiteTransparent.checked;
+  const isSite = elements.layerLevel.value === "site";
+  elements.layerThresholdField.classList.toggle("hidden", !transparent);
+  elements.layerSiteCloseRow.classList.toggle("hidden", isSite);
+  if (isSite) elements.layerShowOnSiteClose.checked = false;
 }
 
 async function handleLayerSubmit(event) {
@@ -781,6 +823,22 @@ async function handleLayerSubmit(event) {
   let y = parseDecimal(elements.layerY.value);
   if (!existing && y === 0) y = dimensions.height * scale;
   if (![scale, x, y].every(Number.isFinite) || scale <= 0) { showToast("Kontrollera lagrets mått och position."); return; }
+  const whiteTransparent = elements.layerWhiteTransparent.checked;
+  const whiteThreshold = Number(elements.layerWhiteThreshold.value) || DEFAULT_WHITE_THRESHOLD;
+  let displayBlob = null;
+  if (whiteTransparent) {
+    try {
+      setSaving(true);
+      displayBlob = existing?.displayBlob && existing.whiteTransparent && existing.whiteThreshold === whiteThreshold
+        ? existing.displayBlob
+        : await createTransparentPreview(blob, whiteThreshold);
+    } catch (error) {
+      console.error(error);
+      setSaving(false);
+      showToast("Den genomskinliga visningskopian kunde inte skapas.");
+      return;
+    }
+  }
   const layer = {
     id: existing?.id || newId(),
     name: elements.layerName.value.trim(),
@@ -797,7 +855,10 @@ async function handleLayerSubmit(event) {
     opacity: Number(elements.layerOpacity.value),
     visible: existing?.visible ?? true,
     locked: elements.layerLocked.checked,
-    whiteTransparent: elements.layerWhiteTransparent.checked,
+    whiteTransparent,
+    whiteThreshold,
+    displayBlob,
+    showOnSiteClose: elements.layerLevel.value !== "site" && elements.layerShowOnSiteClose.checked,
     order: existing?.order ?? workspace.layers.length,
     createdAt: existing?.createdAt || nowIso(),
     updatedAt: nowIso()
@@ -1148,7 +1209,7 @@ async function exportWorkspace() {
   try {
     const serialized = {
       ...workspace,
-      layers: await Promise.all(workspace.layers.map(async (layer) => ({ ...layer, blob: undefined, dataUrl: await blobToDataUrl(layer.blob) }))),
+      layers: await Promise.all(workspace.layers.map(async (layer) => ({ ...layer, blob: undefined, displayBlob: undefined, dataUrl: await blobToDataUrl(layer.blob) }))),
       items: await Promise.all(workspace.items.map(async (item) => ({ ...item, attachments: await Promise.all(item.attachments.map(async (attachment) => ({ ...attachment, blob: undefined, dataUrl: await blobToDataUrl(attachment.blob) }))) })))
     };
     const payload = { format: "torpnotes", exportVersion: EXPORT_VERSION, exportedAt: nowIso(), workspace: serialized };
@@ -1184,6 +1245,7 @@ async function importWorkspace() {
       imported.items = (imported.items || []).map((item) => ({ ...item, attachments: (item.attachments || []).map((attachment) => ({ ...attachment, blob: dataUrlToBlob(attachment.dataUrl) })) }));
     }
     workspace = normalizeWorkspace(imported);
+    await ensureTransparentPreviews();
     activeSessionId = workspace.measurements[0]?.id || null;
     activeLevelId = "site";
     await saveWorkspace("Importen är klar.");
@@ -1236,7 +1298,24 @@ function closeMenu(menu, button) {
 }
 
 function visibleLayers() {
-  return workspace.layers.filter((layer) => layer.visible && (activeLevelId === "all" || layer.levelId === "site" || layer.levelId === activeLevelId));
+  return workspace.layers.filter((layer) => {
+    if (!layer.visible) return false;
+    if (activeLevelId === "all" || layer.levelId === "site" || layer.levelId === activeLevelId) return true;
+    return activeLevelId === "site" && layer.showOnSiteClose && isLayerCloseEnough(layer);
+  });
+}
+
+function isContextualLayer(layer) {
+  return activeLevelId === "site" && layer.levelId !== "site" && layer.showOnSiteClose && isLayerCloseEnough(layer);
+}
+
+function isLayerCloseEnough(layer) {
+  if (!map?._loaded) return false;
+  const bounds = map.getBounds();
+  const viewportWidth = Math.abs(bounds.getEast() - bounds.getWest());
+  const layerWidth = layer.width * layer.metersPerPixel;
+  const layerHeight = layer.height * layer.metersPerPixel;
+  return viewportWidth <= Math.max(layerWidth, layerHeight) * 4;
 }
 
 function fitVisible() {
@@ -1279,6 +1358,7 @@ function itemSystemColor(item) {
 }
 
 function objectStyle(item, interactive) {
+  if (item.kind === "dimension") return { color: item.color || "#27343d", weight: 2, opacity: 0.9, dashArray: "5 3", interactive, className: "object-dimension" };
   return { color: item.color || "#356b8c", weight: 4, opacity: item.status === "done" ? 0.42 : 0.9, fillColor: item.color || "#356b8c", fillOpacity: item.status === "done" ? 0.08 : 0.18, interactive, className: `object-${item.status}` };
 }
 
@@ -1345,11 +1425,13 @@ function migrateLegacyWorkspace(value) {
 }
 
 function normalizeLayer(layer) {
-  return { id: layer.id || newId(), name: layer.name || "Bildlager", levelId: layer.levelId || "site", blob: layer.blob, mimeType: layer.mimeType || layer.blob?.type || "image/*", width: Number(layer.width || 1), height: Number(layer.height || 1), metersPerPixel: Number(layer.metersPerPixel || DEFAULT_SCALE), scaleEstimated: layer.scaleEstimated !== false, x: Number(layer.x || 0), y: Number(layer.y || 0), rotation: Number(layer.rotation || 0), opacity: Number.isFinite(Number(layer.opacity)) ? Number(layer.opacity) : 1, visible: layer.visible !== false, locked: layer.locked !== false, whiteTransparent: layer.whiteTransparent === true, order: Number(layer.order || 0), createdAt: layer.createdAt || nowIso(), updatedAt: layer.updatedAt || nowIso() };
+  const levelId = layer.levelId || "site";
+  return { id: layer.id || newId(), name: layer.name || "Bildlager", levelId, blob: layer.blob, displayBlob: layer.displayBlob instanceof Blob ? layer.displayBlob : null, mimeType: layer.mimeType || layer.blob?.type || "image/*", width: Number(layer.width || 1), height: Number(layer.height || 1), metersPerPixel: Number(layer.metersPerPixel || DEFAULT_SCALE), scaleEstimated: layer.scaleEstimated !== false, x: Number(layer.x || 0), y: Number(layer.y || 0), rotation: Number(layer.rotation || 0), opacity: Number.isFinite(Number(layer.opacity)) ? Number(layer.opacity) : 1, visible: layer.visible !== false, locked: layer.locked !== false, whiteTransparent: layer.whiteTransparent === true, whiteThreshold: Number(layer.whiteThreshold || DEFAULT_WHITE_THRESHOLD), showOnSiteClose: levelId !== "site" && (layer.showOnSiteClose ?? levelId === "ground"), order: Number(layer.order || 0), createdAt: layer.createdAt || nowIso(), updatedAt: layer.updatedAt || nowIso() };
 }
 
 function normalizeItem(item) {
-  return { id: item.id || newId(), title: item.title || "Namnlöst objekt", note: item.note || "", status: STATUSES.some((status) => status.id === item.status) ? item.status : "info", categories: Array.isArray(item.categories) ? item.categories : [], kind: item.kind === "height" ? "height" : "standard", levelId: item.levelId || "site", z: Number.isFinite(Number(item.z)) && item.z !== null ? Number(item.z) : null, zSource: item.zSource || "unknown", color: item.color || "#356b8c", geometryType: ["point", "line", "polygon"].includes(item.geometryType) ? item.geometryType : "point", geometry: Array.isArray(item.geometry) ? item.geometry.map((point) => ({ x: Number(point.x || 0), y: Number(point.y || 0) })) : [{ x: Number(item.x || 0), y: Number(item.y || 0) }], attachments: Array.isArray(item.attachments) ? item.attachments : [], relations: Array.isArray(item.relations) ? item.relations : [], createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || nowIso() };
+  const kind = item.kind === "height" ? "height" : item.kind === "dimension" ? "dimension" : "standard";
+  return { id: item.id || newId(), title: item.title || "Namnlöst objekt", note: item.note || "", status: STATUSES.some((status) => status.id === item.status) ? item.status : "info", categories: Array.isArray(item.categories) ? item.categories : [], kind, levelId: item.levelId || "site", z: Number.isFinite(Number(item.z)) && item.z !== null ? Number(item.z) : null, zSource: item.zSource || "unknown", color: item.color || "#356b8c", dimensionValue: Number.isFinite(Number(item.dimensionValue)) && item.dimensionValue !== null ? Number(item.dimensionValue) : null, measurementSource: ["estimated", "measured", "plan", "manual"].includes(item.measurementSource) ? item.measurementSource : "estimated", geometryType: ["point", "line", "polygon"].includes(item.geometryType) ? item.geometryType : "point", geometry: Array.isArray(item.geometry) ? item.geometry.map((point) => ({ x: Number(point.x || 0), y: Number(point.y || 0) })) : [{ x: Number(item.x || 0), y: Number(item.y || 0) }], attachments: Array.isArray(item.attachments) ? item.attachments : [], relations: Array.isArray(item.relations) ? item.relations : [], createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || nowIso() };
 }
 
 function normalizeMeasurements(measurements) {
@@ -1386,6 +1468,62 @@ async function dbPut(key, value) {
   });
 }
 
+async function ensureTransparentPreviews() {
+  let changed = false;
+  for (const layer of workspace.layers) {
+    if (!layer.whiteTransparent || layer.displayBlob instanceof Blob || !(layer.blob instanceof Blob)) continue;
+    try {
+      layer.displayBlob = await createTransparentPreview(layer.blob, layer.whiteThreshold || DEFAULT_WHITE_THRESHOLD);
+      changed = true;
+    } catch (error) {
+      console.error("Transparent layer preview failed", error);
+      layer.whiteTransparent = false;
+      changed = true;
+    }
+  }
+  if (changed) await dbPut(STATE_KEY, workspace);
+}
+
+async function createTransparentPreview(blob, threshold) {
+  const source = await decodeImageSource(blob);
+  const sourceWidth = source.width || source.naturalWidth;
+  const sourceHeight = source.height || source.naturalHeight;
+  const ratio = Math.min(1, TRANSPARENT_PREVIEW_MAX_SIDE / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * ratio));
+  const height = Math.max(1, Math.round(sourceHeight * ratio));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("Canvas is unavailable");
+  context.drawImage(source, 0, 0, width, height);
+  source.close?.();
+  const imageData = context.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const denominator = Math.max(1, 255 - threshold);
+  for (let index = 0; index < data.length; index += 4) {
+    const whiteness = Math.min(data[index], data[index + 1], data[index + 2]);
+    if (whiteness <= threshold) continue;
+    data[index + 3] = Math.round(data[index + 3] * (255 - whiteness) / denominator);
+  }
+  context.putImageData(imageData, 0, 0);
+  return new Promise((resolve, reject) => canvas.toBlob((result) => result ? resolve(result) : reject(new Error("Transparent preview encoding failed")), "image/png"));
+}
+
+async function decodeImageSource(blob) {
+  if (typeof createImageBitmap === "function") {
+    try { return await createImageBitmap(blob); }
+    catch (error) { console.warn("ImageBitmap decoding failed, using image element", error); }
+  }
+  const url = URL.createObjectURL(blob);
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image could not be decoded")); };
+    image.src = url;
+  });
+}
+
 function imageDimensions(blob) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
@@ -1418,6 +1556,14 @@ function parseDecimal(value) {
   const normalized = String(value).trim().replace(/[−–—]/g, "-").replace(/\s/g, "").replace(",", ".");
   return normalized === "" ? Number.NaN : Number(normalized);
 }
+function parseLength(value) {
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return Number.NaN;
+  const unit = normalized.match(/(mm|cm|m)\s*$/)?.[1] || "m";
+  const number = parseDecimal(normalized.replace(/(mm|cm|m)\s*$/, ""));
+  if (!Number.isFinite(number)) return Number.NaN;
+  return unit === "mm" ? number / 1000 : unit === "cm" ? number / 100 : number;
+}
 function formatInputNumber(value) { return Number(value).toLocaleString("sv-SE", { maximumFractionDigits: 6, useGrouping: false }); }
 function formatNumber(value) { return new Intl.NumberFormat("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 3 }).format(value); }
 function formatMeters(value) { return `${new Intl.NumberFormat("sv-SE", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(value)} m`; }
@@ -1429,6 +1575,10 @@ function categoryName(id) { return CATEGORIES.find((category) => category.id ===
 function levelName(id) { return workspace.levels.find((level) => level.id === id)?.name || "Okänt plan"; }
 function geometryLabel(type) { return type === "line" ? "Linje" : type === "polygon" ? "Område" : "Punkt"; }
 function geometrySymbol(type) { return type === "line" ? "╱" : type === "polygon" ? "▱" : "•"; }
+function distanceBetween(a, b) { return Math.hypot(Number(b.x) - Number(a.x), Number(b.y) - Number(a.y)); }
+function geometryLength(points) { return Array.isArray(points) && points.length > 1 ? points.slice(1).reduce((sum, point, index) => sum + distanceBetween(points[index], point), 0) : 0; }
+function dimensionDisplay(item) { return formatMeters(Number.isFinite(item.dimensionValue) ? item.dimensionValue : geometryLength(item.geometry)); }
+function measurementSourceLabel(source) { return source === "measured" ? "Inmätt" : source === "plan" ? "Från ritning" : source === "manual" ? "Manuellt" : "Uppskattat"; }
 function degreesToRadians(value) { return Number(value || 0) * Math.PI / 180; }
 function copyPoint(point) { return { x: Number(point.x), y: Number(point.y) }; }
 function newId() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`; }

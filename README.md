@@ -14,8 +14,10 @@ The static mobile-first PWA is published on GitHub Pages and uses a property-loc
 
 - Organize image layers by site, basement, ground floor, or upper floor.
 - Position, rotate, fade, lock, directly drag, locate, recover, and calibrate layers against a known distance.
-- Visually suppress white drawing backgrounds when plans are placed over other layers.
+- Generate a mobile-safe transparent preview for plans while preserving the original imported image.
+- Optionally reveal floor-plan layers automatically when the site map is zoomed close to the building.
 - Create and later edit points, lines, and polygon areas.
+- Add dimension lines with calculated length, optional values entered in meters, centimeters, or millimeters, and an explicit measurement source.
 - Cycle status with one click, assign multiple categories, and add optional height, notes, color, and photos.
 - Filter the map by status and category.
 - Use a map-first workspace with Lucide icon controls, secondary functions in a menu, and an on-demand mobile object drawer.
