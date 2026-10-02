@@ -46,6 +46,7 @@ let geometryEdit = null;
 let calibration = null;
 let calibrationMarkers = [];
 let moveLayerState = null;
+let movePointerHandlers = null;
 let readingPlacement = null;
 let filterState = { statuses: new Set(), categories: new Set() };
 let toastTimer = null;
@@ -263,7 +264,7 @@ function renderLayerList() {
 function renderMapObjects() {
   mapObjectLayers.forEach((layer) => layer.remove());
   mapObjectLayers = new Map();
-  filteredObjects().forEach((item) => {
+  objectsForMap().forEach((item) => {
     const interactive = activeTool === "select";
     let layer;
     if (item.geometryType === "point") {
@@ -289,6 +290,13 @@ function filteredObjects() {
     if (filterState.categories.size && !item.categories.some((category) => filterState.categories.has(category))) return false;
     return true;
   });
+}
+
+function objectsForMap() {
+  const objects = filteredObjects();
+  if (!["moveLayer", "calibrate"].includes(activeTool) || activeLevelId === "site") return objects;
+  const references = workspace.items.filter((item) => item.levelId === "site" && !objects.some((candidate) => candidate.id === item.id));
+  return objects.concat(references);
 }
 
 function renderObjectList() {
@@ -620,7 +628,7 @@ function openLayerDialog(layer = null) {
   elements.layerScaleNote.textContent = layer?.scaleEstimated ? "Skalan är ungefärlig. Kalibrera mot ett känt avstånd." : "Skalan är kalibrerad eller manuellt angiven.";
   elements.deleteLayerButton.classList.toggle("hidden", !layer);
   elements.calibrateLayerButton.classList.toggle("hidden", !layer);
-  elements.moveLayerButton.classList.toggle("hidden", !layer || layer.locked);
+  elements.moveLayerButton.classList.toggle("hidden", !layer);
   elements.layerDialog.showModal();
 }
 
@@ -755,36 +763,82 @@ function beginLayerMove() {
   if (!layer) return;
   elements.layerDialog.close();
   activeLevelId = layer.levelId;
-  moveLayerState = { layerId: layer.id, original: { x: layer.x, y: layer.y } };
+  moveLayerState = { layerId: layer.id, original: { x: layer.x, y: layer.y, opacity: layer.opacity } };
+  layer.opacity = Math.min(layer.opacity, 0.62);
   activeTool = "moveLayer";
   renderLevels();
   renderMapLayers();
   renderMapObjects();
-  const handle = L.marker([layer.y, layer.x], { draggable: true, icon: L.divIcon({ className: "vertexHandle", iconSize: [18,18], iconAnchor: [9,9] }), zIndexOffset: 1000 }).addTo(map);
-  handle.on("drag", (event) => {
-    const latLng = event.target.getLatLng();
-    layer.x = latLng.lng;
-    layer.y = latLng.lat;
-    mapImageLayers.get(layer.id)?.update();
-  });
-  vertexHandles.push(handle);
+  enableDirectLayerDrag(layer);
   elements.drawActions.classList.remove("hidden");
   elements.finishDrawButton.disabled = false;
-  elements.mapHint.textContent = "Dra det röda handtaget vid lagrets övre vänstra hörn.";
+  elements.mapHint.textContent = "Dra direkt i ritningen. Underliggande lager och markpunkter visas som referens.";
   elements.mapHint.classList.remove("hidden");
 }
 
 async function finishLayerMove(save) {
   const layer = workspace.layers.find((candidate) => candidate.id === moveLayerState?.layerId);
+  disableDirectLayerDrag();
   if (layer && !save) Object.assign(layer, moveLayerState.original);
-  if (layer && save) { layer.updatedAt = nowIso(); await saveWorkspace("Lagrets position är sparad."); }
+  if (layer && save) {
+    layer.opacity = moveLayerState.original.opacity;
+    layer.updatedAt = nowIso();
+    await saveWorkspace("Lagrets position är sparad.");
+  }
   moveLayerState = null;
-  clearVertexHandles();
   activeTool = "select";
   syncToolUi();
   renderMapLayers();
   renderLayerList();
   renderMapObjects();
+}
+
+function enableDirectLayerDrag(layer) {
+  disableDirectLayerDrag();
+  const container = map.getContainer();
+  let drag = null;
+  const worldPoint = (event) => {
+    const latLng = map.containerPointToLatLng(map.mouseEventToContainerPoint(event));
+    return { x: latLng.lng, y: latLng.lat };
+  };
+  const pointerDown = (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    const start = worldPoint(event);
+    if (!pointInsideLayer(layer, start)) return;
+    event.preventDefault();
+    container.setPointerCapture?.(event.pointerId);
+    drag = { start, x: layer.x, y: layer.y };
+  };
+  const pointerMove = (event) => {
+    if (!drag) return;
+    event.preventDefault();
+    const current = worldPoint(event);
+    layer.x = drag.x + current.x - drag.start.x;
+    layer.y = drag.y + current.y - drag.start.y;
+    mapImageLayers.get(layer.id)?.update();
+  };
+  const pointerUp = (event) => {
+    if (!drag) return;
+    container.releasePointerCapture?.(event.pointerId);
+    drag = null;
+  };
+  movePointerHandlers = { container, pointerDown, pointerMove, pointerUp };
+  map.dragging.disable();
+  container.addEventListener("pointerdown", pointerDown);
+  container.addEventListener("pointermove", pointerMove);
+  container.addEventListener("pointerup", pointerUp);
+  container.addEventListener("pointercancel", pointerUp);
+}
+
+function disableDirectLayerDrag() {
+  if (!movePointerHandlers) return;
+  const { container, pointerDown, pointerMove, pointerUp } = movePointerHandlers;
+  container.removeEventListener("pointerdown", pointerDown);
+  container.removeEventListener("pointermove", pointerMove);
+  container.removeEventListener("pointerup", pointerUp);
+  container.removeEventListener("pointercancel", pointerUp);
+  map.dragging.enable();
+  movePointerHandlers = null;
 }
 
 function openFilterDialog() {
@@ -1148,7 +1202,7 @@ function dataUrlToBlob(dataUrl) {
 }
 
 function parseDecimal(value) {
-  const normalized = String(value).trim().replace(/\s/g, "").replace(",", ".");
+  const normalized = String(value).trim().replace(/[−–—]/g, "-").replace(/\s/g, "").replace(",", ".");
   return normalized === "" ? Number.NaN : Number(normalized);
 }
 function formatInputNumber(value) { return Number(value).toLocaleString("sv-SE", { maximumFractionDigits: 6, useGrouping: false }); }

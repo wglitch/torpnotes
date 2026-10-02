@@ -60,6 +60,31 @@ try {
   await page.locator("#map").click({ position: { x: 580, y: 430 } });
   await page.locator("#calibration-distance").fill("10");
   await page.locator("#calibration-form").getByRole("button", { name: "Använd skala" }).click();
+
+  await page.getByRole("button", { name: "Lager", exact: true }).click();
+  await page.locator("[data-layer-edit]").click();
+  await page.locator("#layer-x").fill("-88,5");
+  await page.locator("#layer-y").fill("75,4");
+  await page.locator("#save-layer-button").click();
+  await page.locator("#layer-dialog").waitFor({ state: "hidden" });
+  await page.getByRole("button", { name: "Lager", exact: true }).click();
+  await page.locator("[data-layer-edit]").click();
+  await page.locator("#save-layer-button").click();
+  await page.locator("#layer-dialog").waitFor({ state: "hidden" });
+  await page.getByRole("button", { name: "Lager", exact: true }).click();
+  await page.locator("[data-layer-edit]").click();
+  await page.locator("#layer-x").fill("0");
+  await page.locator("#layer-y").fill("4");
+  await page.locator("#save-layer-button").click();
+  await page.getByRole("button", { name: "Visa allt", exact: true }).click();
+  await page.getByRole("button", { name: "Lager", exact: true }).click();
+  await page.locator("[data-layer-edit]").click();
+  await page.locator("#move-layer-button").click();
+  await page.mouse.move(540, 430);
+  await page.mouse.down();
+  await page.mouse.move(575, 455, { steps: 5 });
+  await page.mouse.up();
+  await page.locator("#finish-draw-button").click();
   await page.screenshot({ path: path.join(output, "desktop-map-v2.png"), fullPage: true });
 
   await page.getByRole("button", { name: "Mätning", exact: true }).click();
