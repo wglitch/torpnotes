@@ -8,6 +8,7 @@ const { chromium } = require("playwright");
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const output = path.join(root, "test-output");
+const baseUrl = process.env.TORPNOTES_URL || "http://127.0.0.1:4174";
 await fs.mkdir(output, { recursive: true });
 
 const browser = await chromium.launch({ channel: "msedge", headless: true });
@@ -18,17 +19,48 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
 
-  await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
-  await page.locator("#map-file-input").setInputFiles(path.join(root, "icon.svg"));
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Lägg till bildlager" }).click();
+  await page.locator("#layer-file-input").setInputFiles(path.join(root, "icon.svg"));
+  await page.locator("#layer-name").fill("Situationsplan");
+  await page.locator("#save-layer-button").click();
   await page.locator("#empty-map").waitFor({ state: "hidden" });
 
-  await page.getByRole("button", { name: "+ Punkt" }).click();
-  await page.locator("#map").click({ position: { x: 520, y: 360 } });
-  await page.locator("#point-title").fill("Provpunkt");
-  await page.locator("#point-note").fill("Lokalt sparad anteckning");
-  await page.locator("#save-point-button").click();
-  await page.locator("#object-list").getByRole("button", { name: /Provpunkt/ }).waitFor();
-  await page.screenshot({ path: path.join(output, "desktop-map.png"), fullPage: true });
+  await page.getByRole("button", { name: "Punkt", exact: true }).click();
+  await page.locator("#map").click({ position: { x: 520, y: 330 } });
+  await page.locator("#object-title").fill("Kopplingsdosa K12");
+  await page.locator("#object-note").fill("Sladd mot central och uttag U14");
+  await page.locator('[data-object-category="electricity"]').check();
+  await page.locator("#object-image-input").setInputFiles(path.join(root, "icon.svg"));
+  await page.locator("#save-object-button").click();
+  await page.locator("#object-list").getByRole("button", { name: /Kopplingsdosa K12/ }).waitFor();
+
+  await page.getByRole("button", { name: "Område", exact: true }).click();
+  await page.locator("#map").click({ position: { x: 420, y: 260 } });
+  await page.locator("#map").click({ position: { x: 610, y: 270 } });
+  await page.locator("#map").click({ position: { x: 590, y: 410 } });
+  await page.locator("#finish-draw-button").click();
+  await page.locator("#object-title").fill("Husgrund");
+  await page.locator('[data-object-category="construction"]').check();
+  await page.locator("#save-object-button").click();
+
+  await page.getByRole("button", { name: "Linje", exact: true }).click();
+  await page.locator("#map").click({ position: { x: 450, y: 300 } });
+  await page.locator("#map").click({ position: { x: 650, y: 380 } });
+  await page.locator("#finish-draw-button").click();
+  await page.locator("#object-title").fill("Vattenledning");
+  await page.locator('[data-object-category="water"]').check();
+  await page.locator("#save-object-button").click();
+  await page.locator("#object-list").getByRole("button", { name: /Vattenledning/ }).waitFor();
+
+  await page.getByRole("button", { name: "Lager", exact: true }).click();
+  await page.locator("[data-layer-edit]").click();
+  await page.locator("#calibrate-layer-button").click();
+  await page.locator("#map").click({ position: { x: 480, y: 430 } });
+  await page.locator("#map").click({ position: { x: 580, y: 430 } });
+  await page.locator("#calibration-distance").fill("10");
+  await page.locator("#calibration-form").getByRole("button", { name: "Använd skala" }).click();
+  await page.screenshot({ path: path.join(output, "desktop-map-v2.png"), fullPage: true });
 
   await page.getByRole("button", { name: "Mätning", exact: true }).click();
   await page.getByRole("button", { name: "Ny mätning" }).click();
@@ -39,24 +71,69 @@ try {
   await page.locator("#staff-reading").fill("4,740");
   await page.locator("#reading-form").getByRole("button", { name: "Lägg till" }).click();
   await page.getByText("96,585 m").waitFor();
-  await page.screenshot({ path: path.join(output, "desktop-measurement.png"), fullPage: true });
+  await page.getByRole("button", { name: "Placera" }).click();
+  await page.locator("#map").click({ position: { x: 560, y: 350 } });
+  await page.locator("#object-dialog").waitFor({ state: "visible" });
+  await page.locator("#object-form").getByRole("button", { name: "Avbryt" }).click();
+  await page.screenshot({ path: path.join(output, "desktop-height-point.png"), fullPage: true });
 
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Mätning", exact: true }).click();
   await page.getByText("96,585 m").waitFor();
+  await page.getByRole("button", { name: "Karta", exact: true }).click();
+  await page.locator("#object-list").getByRole("button", { name: /Kopplingsdosa K12/ }).waitFor();
+
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
+  await page.locator('[data-filter-category="electricity"]').check();
+  await page.locator("#filter-form").getByRole("button", { name: "Visa" }).click();
+  await page.locator("#item-count").filter({ hasText: "1" }).waitFor();
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
+  await page.locator("#clear-filters-button").click();
+  await page.locator("#filter-form").getByRole("button", { name: "Visa" }).click();
+
+  await page.locator("#object-list").getByRole("button", { name: /Vattenledning/ }).click();
+  await page.locator("#edit-geometry-button").click();
+  await page.locator(".vertexHandle").first().waitFor();
+  await page.locator("#cancel-draw-button").click();
+
+  await page.locator("#object-list").getByRole("button", { name: /Kopplingsdosa K12/ }).click();
+  await page.locator("[data-view-attachment]").click();
+  await page.locator("#photo-dialog").waitFor({ state: "visible" });
+  await page.locator("#photo-close").click();
+  await page.locator("#object-form").getByRole("button", { name: "Avbryt" }).click();
+
+  await page.locator('[data-level-id="ground"]').click();
+  await page.locator("#item-count").filter({ hasText: "0" }).waitFor();
+  await page.locator('[data-level-id="site"]').click();
+
+  await page.getByRole("button", { name: "Data", exact: true }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#export-button").click();
+  const download = await downloadPromise;
+  const exportPath = path.join(output, "smoke-export.torpnotes");
+  await download.saveAs(exportPath);
+
+  const imported = await browser.newContext({ viewport: { width: 1100, height: 760 } });
+  const importedPage = await imported.newPage();
+  await importedPage.goto(baseUrl, { waitUntil: "networkidle" });
+  importedPage.once("dialog", (dialog) => dialog.accept());
+  await importedPage.locator("#import-file-input").setInputFiles(exportPath);
+  await importedPage.locator("#empty-map").waitFor({ state: "hidden" });
+  await importedPage.locator("#object-list").getByRole("button", { name: /Kopplingsdosa K12/ }).waitFor();
+  await imported.close();
 
   if (errors.length) throw new Error(`Browser errors: ${errors.join(" | ")}`);
   await desktop.close();
 
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
   const mobilePage = await mobile.newPage();
-  await mobilePage.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
-  await mobilePage.screenshot({ path: path.join(output, "mobile-empty.png"), fullPage: true });
+  await mobilePage.goto(baseUrl, { waitUntil: "networkidle" });
+  await mobilePage.screenshot({ path: path.join(output, "mobile-empty-v2.png"), fullPage: true });
   await mobilePage.getByRole("button", { name: "Mätning", exact: true }).click();
-  await mobilePage.screenshot({ path: path.join(output, "mobile-measurement.png"), fullPage: true });
+  await mobilePage.screenshot({ path: path.join(output, "mobile-measurement-v2.png"), fullPage: true });
   await mobile.close();
 
-  console.log("Smoke test passed: IndexedDB persistence, map point, leveling calculation, desktop and mobile layouts.");
+  console.log("Smoke test passed: calibrated layers, editable point/line/area objects, photos, filters, leveling placement, persistence, export/import, and responsive layouts.");
 } finally {
   await browser.close();
 }

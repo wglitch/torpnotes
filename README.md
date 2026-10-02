@@ -8,24 +8,26 @@ The app should remain useful at the property even when the home server is unavai
 
 ## Current Status
 
-Active development. The first milestone is a static mobile-first PWA published on GitHub Pages.
+The static mobile-first PWA is published on GitHub Pages and uses a property-local coordinate system measured in meters.
 
-## Initial Scope
+## Current Scope
 
-- Name a local property dataset.
-- Import an owned or appropriately licensed image as the map background.
-- Pan and zoom deeply into the image.
-- Add local points with notes and status.
-- Record leveling sessions from a reference fix and raw staff readings.
-- Export and import the complete local dataset.
+- Organize image layers by site, basement, ground floor, or upper floor.
+- Position, rotate, fade, lock, move, and calibrate layers against a known distance.
+- Create and later edit points, lines, and polygon areas.
+- Assign direct status, multiple categories, optional height, notes, color, and photos.
+- Filter the map by status and category.
+- Record leveling sessions from raw staff readings and place calculated height points on the map.
+- Export and import the complete local dataset, including images.
+- Migrate data saved by the first application version.
 - Work offline after the first successful load.
 
-The app does not yet provide multi-device synchronization, user accounts, or server-side image storage.
+The app does not yet provide multi-device synchronization, user accounts, server-side image storage, geographic GPS anchoring, or a logical installation schematic.
 
 ## Architecture
 
 - Static HTML, CSS, and JavaScript.
-- Leaflet with a simple image coordinate system.
+- Leaflet with a property-local coordinate system in meters and affine image layers.
 - IndexedDB for property data and imported images.
 - Service worker and web app manifest for offline use.
 - GitHub Pages for public hosting of the empty application shell.

@@ -1,4 +1,4 @@
-const CACHE_NAME = "torpnotes-pwa-v1";
+const CACHE_NAME = "torpnotes-pwa-v2";
 const SHELL = [
   "./",
   "./index.html",
