@@ -3,6 +3,7 @@
 - Add voice entry for leveling readings and field notes.
 - Add simple colored sketch layers.
 - Use device GPS for approximate point placement.
+- Explore assisted vectorization of raster maps while keeping uncertainty and manual correction explicit.
 
 # Concepts
 
@@ -11,6 +12,7 @@
 - Keep local thumbnails while server-side originals are available on demand.
 - Add automatic synchronization with the garage server and explicit conflict handling.
 - Anchor the local meter coordinate system to a known GPS point and north direction without changing stored object coordinates.
+- Preserve actual vectors and transparent backgrounds when importing SVG or vector-based PDF plans.
 
 # Candidates
 

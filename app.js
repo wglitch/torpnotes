@@ -29,6 +29,15 @@ const STATUSES = [
   { id: "done", name: "Klart" }
 ];
 
+const SYSTEM_COLORS = {
+  electricity: "#d49a19",
+  water: "#2878a7",
+  construction: "#b34c3d",
+  animals: "#80589b",
+  forest: "#3f7a55",
+  other: "#68717b"
+};
+
 let workspace = createEmptyWorkspace();
 let map;
 let activeLevelId = "site";
@@ -67,6 +76,7 @@ const RotatedImageLayer = L.Layer.extend({
     this.image.style.width = `${this.data.width}px`;
     this.image.style.height = `${this.data.height}px`;
     this.image.style.opacity = String(this.data.opacity);
+    this.image.style.mixBlendMode = this.data.whiteTransparent ? "multiply" : "normal";
     this.image.style.pointerEvents = "none";
     this.image.style.zIndex = String(this.data.order || 0);
     targetMap.getPanes().overlayPane.appendChild(this.image);
@@ -114,7 +124,8 @@ async function initialize() {
 function bindElements() {
   const ids = [
     "property-name-button", "storage-state", "empty-map", "empty-import-button", "level-bar",
-    "layer-button", "filter-button", "fit-map-button", "draw-actions", "cancel-draw-button",
+    "level-button", "layer-button", "filter-button", "fit-map-button", "object-panel-button",
+    "close-object-panel", "draw-actions", "cancel-draw-button",
     "finish-draw-button", "map-hint", "layer-panel", "close-layer-panel", "layer-list",
     "add-layer-button", "object-panel-level", "item-count", "active-filters", "object-list",
     "new-session-button", "session-list", "session-count", "measure-detail", "property-name-input",
@@ -124,7 +135,7 @@ function bindElements() {
     "object-image-input", "attachment-grid", "delete-object-button", "edit-geometry-button",
     "layer-dialog", "layer-form", "layer-dialog-title", "layer-id", "layer-file-field",
     "layer-file-input", "layer-name", "layer-level", "layer-scale", "layer-rotation", "layer-opacity",
-    "layer-x", "layer-y", "layer-locked", "layer-scale-note", "delete-layer-button",
+    "layer-x", "layer-y", "layer-locked", "layer-white-transparent", "layer-scale-note", "delete-layer-button",
     "move-layer-button", "calibrate-layer-button", "calibration-dialog", "calibration-form",
     "calibration-summary", "calibration-distance", "filter-dialog", "filter-form", "filter-statuses",
     "filter-categories", "clear-filters-button", "session-dialog", "session-form", "session-name",
@@ -139,10 +150,13 @@ function bindEvents() {
   document.querySelectorAll("[data-tool]").forEach((button) => button.addEventListener("click", () => setTool(button.dataset.tool)));
   elements.propertyNameButton.addEventListener("click", () => switchView("data"));
   elements.emptyImportButton.addEventListener("click", () => openLayerDialog());
+  elements.levelButton.addEventListener("click", () => elements.levelBar.classList.toggle("open"));
   elements.layerButton.addEventListener("click", () => elements.layerPanel.classList.toggle("hidden"));
   elements.closeLayerPanel.addEventListener("click", () => elements.layerPanel.classList.add("hidden"));
   elements.addLayerButton.addEventListener("click", () => openLayerDialog());
-  elements.fitMapButton.addEventListener("click", fitVisible);
+  elements.fitMapButton.addEventListener("click", showAll);
+  elements.objectPanelButton.addEventListener("click", () => document.querySelector(".objectPanel").classList.add("mobileOpen"));
+  elements.closeObjectPanel.addEventListener("click", () => document.querySelector(".objectPanel").classList.remove("mobileOpen"));
   elements.cancelDrawButton.addEventListener("click", cancelMapAction);
   elements.finishDrawButton.addEventListener("click", finishMapAction);
   elements.objectForm.addEventListener("submit", handleObjectSubmit);
@@ -187,9 +201,9 @@ function initializeMap() {
 }
 
 function populateStaticChoices() {
-  elements.categoryChoices.innerHTML = CATEGORIES.map((category) => `<label><input data-object-category="${category.id}" type="checkbox"><span>${category.name}</span></label>`).join("");
+  elements.categoryChoices.innerHTML = CATEGORIES.map((category) => `<label><input data-object-category="${category.id}" type="checkbox"><span class="categorySwatch" style="--swatch:${SYSTEM_COLORS[category.id]}"></span><span>${category.name}</span></label>`).join("");
   elements.filterStatuses.innerHTML = STATUSES.map((status) => `<label><input data-filter-status="${status.id}" type="checkbox"><span>${status.name}</span></label>`).join("");
-  elements.filterCategories.innerHTML = CATEGORIES.map((category) => `<label><input data-filter-category="${category.id}" type="checkbox"><span>${category.name}</span></label>`).join("");
+  elements.filterCategories.innerHTML = CATEGORIES.map((category) => `<label><input data-filter-category="${category.id}" type="checkbox"><span class="categorySwatch" style="--swatch:${SYSTEM_COLORS[category.id]}"></span><span>${category.name}</span></label>`).join("");
 }
 
 async function renderAll(fit = false) {
@@ -212,10 +226,12 @@ function renderProperty() {
 }
 
 function renderLevels() {
-  if (!workspace.levels.some((level) => level.id === activeLevelId)) activeLevelId = workspace.levels[0]?.id || "site";
-  elements.levelBar.innerHTML = workspace.levels.map((level) => `<button class="${level.id === activeLevelId ? "active" : ""}" data-level-id="${escapeHtml(level.id)}" type="button">${escapeHtml(level.name)}</button>`).join("");
+  if (activeLevelId !== "all" && !workspace.levels.some((level) => level.id === activeLevelId)) activeLevelId = workspace.levels[0]?.id || "site";
+  const levelChoices = workspace.levels.concat({ id: "all", name: "Alla plan" });
+  elements.levelBar.innerHTML = levelChoices.map((level) => `<button class="${level.id === activeLevelId ? "active" : ""}" data-level-id="${escapeHtml(level.id)}" type="button">${escapeHtml(level.name)}</button>`).join("");
   elements.levelBar.querySelectorAll("[data-level-id]").forEach((button) => button.addEventListener("click", () => {
     activeLevelId = button.dataset.levelId;
+    elements.levelBar.classList.remove("open");
     cancelMapAction();
     renderLevels();
     renderMapLayers();
@@ -225,7 +241,7 @@ function renderLevels() {
   const options = workspace.levels.map((level) => `<option value="${escapeHtml(level.id)}">${escapeHtml(level.name)}</option>`).join("");
   elements.objectLevel.innerHTML = options;
   elements.layerLevel.innerHTML = options;
-  elements.objectPanelLevel.textContent = levelName(activeLevelId);
+  elements.objectPanelLevel.textContent = activeLevelId === "all" ? "Alla plan" : levelName(activeLevelId);
 }
 
 function renderMapLayers() {
@@ -270,7 +286,7 @@ function renderMapObjects() {
     if (item.geometryType === "point") {
       const point = item.geometry[0];
       if (!point) return;
-      layer = L.marker([point.y, point.x], { icon: markerIcon(item.status), keyboard: interactive, interactive, title: item.title });
+      layer = L.marker([point.y, point.x], { icon: markerIcon(item), keyboard: interactive, interactive, title: item.title });
     } else {
       const coordinates = item.geometry.map((point) => [point.y, point.x]);
       const style = objectStyle(item, interactive);
@@ -285,7 +301,7 @@ function renderMapObjects() {
 
 function filteredObjects() {
   return workspace.items.filter((item) => {
-    if (item.levelId !== activeLevelId) return false;
+    if (activeLevelId !== "all" && item.levelId !== activeLevelId) return false;
     if (filterState.statuses.size && !filterState.statuses.has(item.status)) return false;
     if (filterState.categories.size && !item.categories.some((category) => filterState.categories.has(category))) return false;
     return true;
@@ -311,7 +327,7 @@ function renderObjectList() {
   }
   elements.objectList.innerHTML = items.map((item) => `
     <button class="objectRow" data-item-id="${escapeHtml(item.id)}" type="button">
-      <span class="geometryBadge">${geometrySymbol(item.geometryType)}</span><span class="statusMarker ${escapeHtml(item.status)}"></span>
+      <span class="geometryBadge">${geometrySymbol(item.geometryType, item.kind)}</span><span class="statusMarker ${escapeHtml(item.status)} ${item.kind === "height" ? "height" : ""}" style="--marker-color:${itemSystemColor(item)}"></span>
       <span class="rowText"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(statusLabel(item.status))}${item.categories.length ? ` · ${item.categories.map(categoryName).join(", ")}` : ""}${Number.isFinite(item.z) ? ` · z ${formatNumber(item.z)}` : ""}</small></span>
     </button>`).join("");
   elements.objectList.querySelectorAll("[data-item-id]").forEach((button) => button.addEventListener("click", () => {
@@ -379,6 +395,11 @@ function setTool(tool) {
     showToast("Lägg till ett bildlager först.");
     return;
   }
+  if (["point", "line", "polygon"].includes(tool) && activeLevelId === "all") {
+    elements.levelBar.classList.add("open");
+    showToast("Välj ett plan innan du ritar.");
+    return;
+  }
   clearTransientMapState();
   activeTool = tool;
   document.querySelectorAll("[data-tool]").forEach((button) => button.classList.toggle("active", button.dataset.tool === tool));
@@ -388,6 +409,7 @@ function setTool(tool) {
   elements.mapHint.classList.toggle("hidden", tool === "select");
   elements.mapHint.textContent = tool === "point" ? "Tryck där punkten ska ligga." : tool === "line" ? "Tryck ut linjens brytpunkter och välj Klar." : tool === "polygon" ? "Tryck ut områdets hörn och välj Klar." : "";
   map.getContainer().style.cursor = tool === "select" ? "grab" : "crosshair";
+  refreshMobileChrome();
   renderMapObjects();
 }
 
@@ -439,6 +461,11 @@ function syncToolUi() {
   elements.drawActions.classList.toggle("hidden", !["line", "polygon", "edit", "moveLayer"].includes(activeTool));
   elements.mapHint.classList.toggle("hidden", activeTool === "select");
   map.getContainer().style.cursor = activeTool === "select" ? "grab" : "crosshair";
+  refreshMobileChrome();
+}
+
+function refreshMobileChrome() {
+  document.body.classList.toggle("mapActionActive", !elements.drawActions.classList.contains("hidden"));
 }
 
 function openObjectDialog(item = null) {
@@ -449,7 +476,7 @@ function openObjectDialog(item = null) {
   elements.objectId.value = item?.id || "";
   elements.objectTitle.value = item?.title || "";
   elements.objectNote.value = item?.note || "";
-  elements.objectLevel.value = item?.levelId || activeLevelId;
+  elements.objectLevel.value = item?.levelId || (activeLevelId === "all" ? "site" : activeLevelId);
   elements.objectZ.value = Number.isFinite(item?.z) ? formatInputNumber(item.z) : "";
   elements.objectZSource.value = item?.zSource || "unknown";
   elements.objectColor.value = item?.color || "#356b8c";
@@ -570,6 +597,7 @@ function beginGeometryEdit() {
   geometryEdit = { itemId: item.id, original: item.geometry.map(copyPoint) };
   activeTool = "edit";
   elements.drawActions.classList.remove("hidden");
+  refreshMobileChrome();
   elements.finishDrawButton.disabled = false;
   elements.mapHint.textContent = "Dra de röda handtagen. Välj Klar när formen stämmer.";
   elements.mapHint.classList.remove("hidden");
@@ -618,13 +646,14 @@ function openLayerDialog(layer = null) {
   elements.layerFileField.classList.toggle("hidden", Boolean(layer));
   elements.layerFileInput.required = !layer;
   elements.layerName.value = layer?.name || "";
-  elements.layerLevel.value = layer?.levelId || activeLevelId;
+  elements.layerLevel.value = layer?.levelId || (activeLevelId === "all" ? "site" : activeLevelId);
   elements.layerScale.value = formatInputNumber(layer?.metersPerPixel ?? DEFAULT_SCALE);
   elements.layerRotation.value = formatInputNumber(layer?.rotation ?? 0);
   elements.layerOpacity.value = String(layer?.opacity ?? 0.85);
   elements.layerX.value = formatInputNumber(layer?.x ?? 0);
   elements.layerY.value = formatInputNumber(layer?.y ?? 0);
   elements.layerLocked.checked = layer?.locked ?? true;
+  elements.layerWhiteTransparent.checked = layer?.whiteTransparent ?? false;
   elements.layerScaleNote.textContent = layer?.scaleEstimated ? "Skalan är ungefärlig. Kalibrera mot ett känt avstånd." : "Skalan är kalibrerad eller manuellt angiven.";
   elements.deleteLayerButton.classList.toggle("hidden", !layer);
   elements.calibrateLayerButton.classList.toggle("hidden", !layer);
@@ -666,6 +695,7 @@ async function handleLayerSubmit(event) {
     opacity: Number(elements.layerOpacity.value),
     visible: existing?.visible ?? true,
     locked: elements.layerLocked.checked,
+    whiteTransparent: elements.layerWhiteTransparent.checked,
     order: existing?.order ?? workspace.layers.length,
     createdAt: existing?.createdAt || nowIso(),
     updatedAt: nowIso()
@@ -705,6 +735,7 @@ function beginCalibration() {
   renderMapLayers();
   renderMapObjects();
   elements.drawActions.classList.remove("hidden");
+  refreshMobileChrome();
   elements.finishDrawButton.disabled = true;
   elements.mapHint.textContent = "Tryck på två punkter i lagret med ett känt avstånd.";
   elements.mapHint.classList.remove("hidden");
@@ -771,8 +802,9 @@ function beginLayerMove() {
   renderMapObjects();
   enableDirectLayerDrag(layer);
   elements.drawActions.classList.remove("hidden");
+  refreshMobileChrome();
   elements.finishDrawButton.disabled = false;
-  elements.mapHint.textContent = "Dra direkt i ritningen. Underliggande lager och markpunkter visas som referens.";
+  elements.mapHint.textContent = "Dra ritningen. Tryck ✓ när den ligger rätt.";
   elements.mapHint.classList.remove("hidden");
 }
 
@@ -808,6 +840,7 @@ function enableDirectLayerDrag(layer) {
     event.preventDefault();
     container.setPointerCapture?.(event.pointerId);
     drag = { start, x: layer.x, y: layer.y };
+    elements.mapHint.classList.add("hidden");
   };
   const pointerMove = (event) => {
     if (!drag) return;
@@ -929,9 +962,14 @@ function handleReadingMap(sessionId, readingId) {
     reading.itemId = null;
   }
   readingPlacement = { sessionId, readingId };
+  activeLevelId = "site";
   activeTool = "placeReading";
   switchView("map");
+  renderLevels();
+  renderMapLayers();
+  renderObjectList();
   elements.drawActions.classList.remove("hidden");
+  refreshMobileChrome();
   elements.finishDrawButton.disabled = true;
   elements.mapHint.textContent = `Tryck där ${reading.name} ska placeras.`;
   elements.mapHint.classList.remove("hidden");
@@ -943,11 +981,12 @@ async function placeReadingPoint(point) {
   const session = workspace.measurements.find((candidate) => candidate.id === readingPlacement?.sessionId);
   const reading = session?.readings.find((candidate) => candidate.id === readingPlacement?.readingId);
   if (!reading) return;
-  const item = { id: newId(), title: reading.name, note: `Höjdpunkt från ${session.name}`, status: "info", categories: [], levelId: activeLevelId, z: reading.height, zSource: "measured", color: "#356b8c", geometryType: "point", geometry: [point], attachments: [], relations: [], createdAt: nowIso(), updatedAt: nowIso() };
+  const item = { id: newId(), title: reading.name, note: `Höjdpunkt från ${session.name}`, status: "info", categories: [], kind: "height", levelId: "site", z: reading.height, zSource: "measured", color: "#356b8c", geometryType: "point", geometry: [point], attachments: [], relations: [], createdAt: nowIso(), updatedAt: nowIso() };
   workspace.items.push(item);
   reading.itemId = item.id;
   session.updatedAt = nowIso();
   readingPlacement = null;
+  activeLevelId = "site";
   activeTool = "select";
   syncToolUi();
   await saveWorkspace("Höjdpunkten är placerad.");
@@ -1038,13 +1077,14 @@ function setSaving(saving) {
 }
 
 function switchView(viewName) {
+  if (viewName !== "map") document.querySelector(".objectPanel").classList.remove("mobileOpen");
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === viewName));
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === `view-${viewName}`));
   if (viewName === "map") window.setTimeout(() => { map.invalidateSize(); renderMapLayers(); }, 0);
 }
 
 function visibleLayers() {
-  return workspace.layers.filter((layer) => layer.visible && (layer.levelId === "site" || layer.levelId === activeLevelId));
+  return workspace.layers.filter((layer) => layer.visible && (activeLevelId === "all" || layer.levelId === "site" || layer.levelId === activeLevelId));
 }
 
 function fitVisible() {
@@ -1055,14 +1095,34 @@ function fitVisible() {
   else map.setView([0, 0], 0);
 }
 
+function showAll() {
+  cancelMapAction();
+  filterState = { statuses: new Set(), categories: new Set() };
+  activeLevelId = "all";
+  elements.levelBar.classList.remove("open");
+  elements.layerPanel.classList.add("hidden");
+  document.querySelector(".objectPanel").classList.remove("mobileOpen");
+  renderLevels();
+  renderMapLayers();
+  renderMapObjects();
+  renderObjectList();
+  window.setTimeout(fitVisible, 0);
+  showToast("Visar alla objekt på alla plan.");
+}
+
 function zoomToObject(item) {
   const latLngs = item.geometry.map((point) => [point.y, point.x]);
   if (item.geometryType === "point") map.flyTo(latLngs[0], Math.max(map.getZoom(), 4));
   else map.fitBounds(L.latLngBounds(latLngs), { padding: [40, 40], maxZoom: 7 });
 }
 
-function markerIcon(status) {
-  return L.divIcon({ className: "", html: `<span class="torp-marker ${escapeHtml(status)}"></span>`, iconAnchor: [11,11], iconSize: [22,22], tooltipAnchor: [0,-12] });
+function markerIcon(item) {
+  const heightClass = item.kind === "height" ? "height" : "";
+  return L.divIcon({ className: "", html: `<span class="torp-marker ${escapeHtml(item.status)} ${heightClass}" style="--marker-color:${itemSystemColor(item)}"></span>`, iconAnchor: [12,12], iconSize: [25,25], tooltipAnchor: [0,-13] });
+}
+
+function itemSystemColor(item) {
+  return SYSTEM_COLORS[item.categories?.[0]] || (item.kind === "height" ? "#414a53" : SYSTEM_COLORS.other);
 }
 
 function objectStyle(item, interactive) {
@@ -1132,11 +1192,11 @@ function migrateLegacyWorkspace(value) {
 }
 
 function normalizeLayer(layer) {
-  return { id: layer.id || newId(), name: layer.name || "Bildlager", levelId: layer.levelId || "site", blob: layer.blob, mimeType: layer.mimeType || layer.blob?.type || "image/*", width: Number(layer.width || 1), height: Number(layer.height || 1), metersPerPixel: Number(layer.metersPerPixel || DEFAULT_SCALE), scaleEstimated: layer.scaleEstimated !== false, x: Number(layer.x || 0), y: Number(layer.y || 0), rotation: Number(layer.rotation || 0), opacity: Number.isFinite(Number(layer.opacity)) ? Number(layer.opacity) : 1, visible: layer.visible !== false, locked: layer.locked !== false, order: Number(layer.order || 0), createdAt: layer.createdAt || nowIso(), updatedAt: layer.updatedAt || nowIso() };
+  return { id: layer.id || newId(), name: layer.name || "Bildlager", levelId: layer.levelId || "site", blob: layer.blob, mimeType: layer.mimeType || layer.blob?.type || "image/*", width: Number(layer.width || 1), height: Number(layer.height || 1), metersPerPixel: Number(layer.metersPerPixel || DEFAULT_SCALE), scaleEstimated: layer.scaleEstimated !== false, x: Number(layer.x || 0), y: Number(layer.y || 0), rotation: Number(layer.rotation || 0), opacity: Number.isFinite(Number(layer.opacity)) ? Number(layer.opacity) : 1, visible: layer.visible !== false, locked: layer.locked !== false, whiteTransparent: layer.whiteTransparent === true, order: Number(layer.order || 0), createdAt: layer.createdAt || nowIso(), updatedAt: layer.updatedAt || nowIso() };
 }
 
 function normalizeItem(item) {
-  return { id: item.id || newId(), title: item.title || "Namnlöst objekt", note: item.note || "", status: STATUSES.some((status) => status.id === item.status) ? item.status : "info", categories: Array.isArray(item.categories) ? item.categories : [], levelId: item.levelId || "site", z: Number.isFinite(Number(item.z)) && item.z !== null ? Number(item.z) : null, zSource: item.zSource || "unknown", color: item.color || "#356b8c", geometryType: ["point", "line", "polygon"].includes(item.geometryType) ? item.geometryType : "point", geometry: Array.isArray(item.geometry) ? item.geometry.map((point) => ({ x: Number(point.x || 0), y: Number(point.y || 0) })) : [{ x: Number(item.x || 0), y: Number(item.y || 0) }], attachments: Array.isArray(item.attachments) ? item.attachments : [], relations: Array.isArray(item.relations) ? item.relations : [], createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || nowIso() };
+  return { id: item.id || newId(), title: item.title || "Namnlöst objekt", note: item.note || "", status: STATUSES.some((status) => status.id === item.status) ? item.status : "info", categories: Array.isArray(item.categories) ? item.categories : [], kind: item.kind === "height" ? "height" : "standard", levelId: item.levelId || "site", z: Number.isFinite(Number(item.z)) && item.z !== null ? Number(item.z) : null, zSource: item.zSource || "unknown", color: item.color || "#356b8c", geometryType: ["point", "line", "polygon"].includes(item.geometryType) ? item.geometryType : "point", geometry: Array.isArray(item.geometry) ? item.geometry.map((point) => ({ x: Number(point.x || 0), y: Number(point.y || 0) })) : [{ x: Number(item.x || 0), y: Number(item.y || 0) }], attachments: Array.isArray(item.attachments) ? item.attachments : [], relations: Array.isArray(item.relations) ? item.relations : [], createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || nowIso() };
 }
 
 function normalizeMeasurements(measurements) {

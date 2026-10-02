@@ -34,15 +34,21 @@
             <div class="emptyMap" id="empty-map"><div class="emptyMapInner"><span class="emptyMapIcon" aria-hidden="true">⌖</span><h2>Lägg till det första lagret</h2><p>Använd ett eget flygfoto, en situationsplan eller en planritning som du har rätt att använda.</p><button class="primaryButton" id="empty-import-button" type="button">Lägg till bildlager</button></div></div>
             <div class="levelBar" id="level-bar" aria-label="Våningsplan"></div>
             <div class="mapTools" aria-label="Kartverktyg">
-              <div class="toolGroup" aria-label="Rita objekt">
-                <button class="toolButton active" data-tool="select" title="Välj objekt" type="button">Välj</button>
-                <button class="toolButton" data-tool="point" title="Lägg till punkt" type="button">Punkt</button>
-                <button class="toolButton" data-tool="line" title="Rita linje" type="button">Linje</button>
-                <button class="toolButton" data-tool="polygon" title="Rita område" type="button">Område</button>
+              <div class="toolGroup drawToolGroup" aria-label="Rita objekt">
+                <button class="toolButton active" data-tool="select" title="Välj objekt" type="button"><span class="buttonIcon" aria-hidden="true">↖</span><span class="buttonLabel">Välj</span></button>
+                <button class="toolButton" data-tool="point" title="Lägg till punkt" type="button"><span class="buttonIcon" aria-hidden="true">●</span><span class="buttonLabel">Punkt</span></button>
+                <button class="toolButton" data-tool="line" title="Rita linje" type="button"><span class="buttonIcon" aria-hidden="true">╱</span><span class="buttonLabel">Linje</span></button>
+                <button class="toolButton" data-tool="polygon" title="Rita område" type="button"><span class="buttonIcon" aria-hidden="true">▱</span><span class="buttonLabel">Område</span></button>
               </div>
-              <div class="toolGroup"><button id="layer-button" title="Hantera kartlager" type="button">Lager</button><button id="filter-button" title="Filtrera objekt" type="button">Filter</button><button id="fit-map-button" title="Visa synliga lager" type="button">Visa allt</button></div>
+              <div class="toolGroup mapActionGroup">
+                <button class="mobileOnly" id="level-button" title="Välj våningsplan" type="button"><span class="buttonIcon" aria-hidden="true">▥</span><span class="buttonLabel">Plan</span></button>
+                <button id="layer-button" title="Hantera kartlager" type="button"><span class="buttonIcon" aria-hidden="true">▰</span><span class="buttonLabel">Lager</span></button>
+                <button id="filter-button" title="Filtrera objekt" type="button"><span class="buttonIcon" aria-hidden="true">≡</span><span class="buttonLabel">Filter</span></button>
+                <button id="fit-map-button" title="Nollställ filter och visa alla plan" type="button"><span class="buttonIcon" aria-hidden="true">⊙</span><span class="buttonLabel">Visa allt</span></button>
+                <button class="mobileOnly" id="object-panel-button" title="Visa objektlistan" type="button"><span class="buttonIcon" aria-hidden="true">☷</span><span class="buttonLabel">Objekt</span></button>
+              </div>
             </div>
-            <div class="drawActions hidden" id="draw-actions"><button class="secondaryButton" id="cancel-draw-button" type="button">Avbryt</button><button class="primaryButton" id="finish-draw-button" type="button">Klar</button></div>
+            <div class="drawActions hidden" id="draw-actions"><button class="secondaryButton" id="cancel-draw-button" aria-label="Avbryt" type="button"><span aria-hidden="true">×</span><span class="actionLabel">Avbryt</span></button><button class="primaryButton" id="finish-draw-button" aria-label="Klar" type="button"><span aria-hidden="true">✓</span><span class="actionLabel">Klar</span></button></div>
             <div class="mapHint hidden" id="map-hint"></div>
             <aside class="floatingPanel hidden" id="layer-panel" aria-label="Kartlager">
               <div class="floatingPanelHeader"><div><span class="eyebrow">Kartbild och ritningar</span><h2>Lager</h2></div><button class="iconButton" id="close-layer-panel" aria-label="Stäng lagerpanelen" type="button">×</button></div>
@@ -51,7 +57,7 @@
             </aside>
           </div>
           <aside class="objectPanel">
-            <div class="panelHeading"><div><span class="eyebrow" id="object-panel-level">Mark</span><h2>Objekt</h2></div><span class="countBadge" id="item-count">0</span></div>
+            <div class="panelHeading"><div><span class="eyebrow" id="object-panel-level">Mark</span><h2>Objekt</h2></div><div class="panelHeadingActions"><span class="countBadge" id="item-count">0</span><button class="iconButton mobileOnly" id="close-object-panel" aria-label="Stäng objektlistan" type="button">×</button></div></div>
             <div class="activeFilters hidden" id="active-filters"></div>
             <div class="objectList" id="object-list"></div>
           </aside>
@@ -95,7 +101,7 @@
         <div class="fieldGrid"><label>Namn<input id="layer-name" maxlength="100" required type="text"></label><label>Våningsplan<select id="layer-level"></select></label></div>
         <div class="fieldGrid threeFields"><label>Skala (m/pixel)<input id="layer-scale" inputmode="decimal" required type="text"></label><label>Rotation (°)<input id="layer-rotation" inputmode="decimal" required type="text"></label><label>Opacitet<input id="layer-opacity" max="1" min="0.1" step="0.05" type="range"></label></div>
         <div class="fieldGrid"><label>Övre vänster X (m)<input id="layer-x" inputmode="decimal" required type="text"></label><label>Övre vänster Y (m)<input id="layer-y" inputmode="decimal" required type="text"></label></div>
-        <label class="checkRow"><input id="layer-locked" type="checkbox"><span>Lås lagret efter placering</span></label><p class="formNote" id="layer-scale-note">Skalan kan kalibreras mot ett känt avstånd efter att lagret sparats.</p>
+        <div class="checkGrid"><label class="checkRow"><input id="layer-locked" type="checkbox"><span>Lås lagret efter placering</span></label><label class="checkRow"><input id="layer-white-transparent" type="checkbox"><span>Dölj vit bakgrund</span></label></div><p class="formNote" id="layer-scale-note">Skalan kan kalibreras mot ett känt avstånd efter att lagret sparats.</p>
         <div class="dialogActions objectActions"><button class="dangerTextButton hidden" id="delete-layer-button" type="button">Radera</button><button class="secondaryButton hidden" id="move-layer-button" type="button">Flytta</button><button class="secondaryButton hidden" id="calibrate-layer-button" type="button">Kalibrera</button><span></span><button class="secondaryButton" value="cancel" type="submit">Avbryt</button><button class="primaryButton" id="save-layer-button" value="default" type="submit">Spara</button></div>
       </form>
     </dialog>

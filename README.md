@@ -13,10 +13,13 @@ The static mobile-first PWA is published on GitHub Pages and uses a property-loc
 ## Current Scope
 
 - Organize image layers by site, basement, ground floor, or upper floor.
-- Position, rotate, fade, lock, move, and calibrate layers against a known distance.
+- Position, rotate, fade, lock, directly drag, and calibrate layers against a known distance.
+- Visually suppress white drawing backgrounds when plans are placed over other layers.
 - Create and later edit points, lines, and polygon areas.
 - Assign direct status, multiple categories, optional height, notes, color, and photos.
 - Filter the map by status and category.
+- Use a map-first mobile workspace with compact tool rails and an on-demand object drawer.
+- Distinguish point systems by color and status by shape.
 - Record leveling sessions from raw staff readings and place calculated height points on the map.
 - Export and import the complete local dataset, including images.
 - Migrate data saved by the first application version.

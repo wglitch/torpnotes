@@ -23,6 +23,7 @@ try {
   await page.getByRole("button", { name: "Lägg till bildlager" }).click();
   await page.locator("#layer-file-input").setInputFiles(path.join(root, "icon.svg"));
   await page.locator("#layer-name").fill("Situationsplan");
+  await page.locator("#layer-white-transparent").check();
   await page.locator("#save-layer-button").click();
   await page.locator("#empty-map").waitFor({ state: "hidden" });
 
@@ -42,6 +43,7 @@ try {
   await page.locator("#finish-draw-button").click();
   await page.locator("#object-title").fill("Husgrund");
   await page.locator('[data-object-category="construction"]').check();
+  await page.locator('input[name="object-status"][value="done"]').check();
   await page.locator("#save-object-button").click();
 
   await page.getByRole("button", { name: "Linje", exact: true }).click();
@@ -50,6 +52,7 @@ try {
   await page.locator("#finish-draw-button").click();
   await page.locator("#object-title").fill("Vattenledning");
   await page.locator('[data-object-category="water"]').check();
+  await page.locator('input[name="object-status"][value="todo"]').check();
   await page.locator("#save-object-button").click();
   await page.locator("#object-list").getByRole("button", { name: /Vattenledning/ }).waitFor();
 
@@ -87,6 +90,7 @@ try {
   await page.locator("#finish-draw-button").click();
   await page.screenshot({ path: path.join(output, "desktop-map-v2.png"), fullPage: true });
 
+  await page.locator('[data-level-id="ground"]').click();
   await page.getByRole("button", { name: "Mätning", exact: true }).click();
   await page.getByRole("button", { name: "Ny mätning" }).click();
   await page.locator("#fix-name").fill("FIX-01");
@@ -99,6 +103,7 @@ try {
   await page.getByRole("button", { name: "Placera" }).click();
   await page.locator("#map").click({ position: { x: 560, y: 350 } });
   await page.locator("#object-dialog").waitFor({ state: "visible" });
+  await page.locator("#object-level").evaluate((element) => { if (element.value !== "site") throw new Error(`Expected site level, got ${element.value}`); });
   await page.locator("#object-form").getByRole("button", { name: "Avbryt" }).click();
   await page.screenshot({ path: path.join(output, "desktop-height-point.png"), fullPage: true });
 
@@ -112,9 +117,11 @@ try {
   await page.locator('[data-filter-category="electricity"]').check();
   await page.locator("#filter-form").getByRole("button", { name: "Visa" }).click();
   await page.locator("#item-count").filter({ hasText: "1" }).waitFor();
-  await page.getByRole("button", { name: "Filter", exact: true }).click();
-  await page.locator("#clear-filters-button").click();
-  await page.locator("#filter-form").getByRole("button", { name: "Visa" }).click();
+  await page.getByRole("button", { name: "Visa allt", exact: true }).click();
+  await page.locator('[data-level-id="all"].active').waitFor();
+  await page.locator("#active-filters").waitFor({ state: "hidden" });
+  await page.locator("#item-count").filter({ hasText: "4" }).waitFor();
+  await page.locator('[data-level-id="site"]').click();
 
   await page.locator("#object-list").getByRole("button", { name: /Vattenledning/ }).click();
   await page.locator("#edit-geometry-button").click();
@@ -154,6 +161,25 @@ try {
   const mobilePage = await mobile.newPage();
   await mobilePage.goto(baseUrl, { waitUntil: "networkidle" });
   await mobilePage.screenshot({ path: path.join(output, "mobile-empty-v2.png"), fullPage: true });
+  await mobilePage.getByRole("button", { name: "Data", exact: true }).click();
+  mobilePage.once("dialog", (dialog) => dialog.accept());
+  await mobilePage.locator("#import-file-input").setInputFiles(exportPath);
+  await mobilePage.locator("#empty-map").waitFor({ state: "hidden" });
+  await mobilePage.getByRole("button", { name: "Karta", exact: true }).click();
+  await mobilePage.screenshot({ path: path.join(output, "mobile-map-v3.png"), fullPage: true });
+  await mobilePage.locator("#object-panel-button").click();
+  await mobilePage.locator(".objectPanel.mobileOpen").waitFor();
+  await mobilePage.screenshot({ path: path.join(output, "mobile-objects-v3.png"), fullPage: true });
+  await mobilePage.locator("#close-object-panel").click();
+  await mobilePage.locator("#level-button").click();
+  await mobilePage.locator("#level-bar.open").waitFor();
+  await mobilePage.locator('[data-level-id="site"]').click();
+  await mobilePage.locator("#layer-button").click();
+  await mobilePage.locator("[data-layer-edit]").click();
+  await mobilePage.locator("#move-layer-button").click();
+  await mobilePage.locator("#draw-actions").waitFor({ state: "visible" });
+  await mobilePage.screenshot({ path: path.join(output, "mobile-layer-move-v3.png"), fullPage: true });
+  await mobilePage.locator("#cancel-draw-button").click();
   await mobilePage.getByRole("button", { name: "Mätning", exact: true }).click();
   await mobilePage.screenshot({ path: path.join(output, "mobile-measurement-v2.png"), fullPage: true });
   await mobile.close();

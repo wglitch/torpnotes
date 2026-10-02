@@ -4,7 +4,7 @@ Local-first property documentation that works independently of the TorpNotes ser
 
 # Current Next Step
 
-Publish the meter-based layer and object update, then field-test calibration and editing on a phone with real property drawings.
+Field-test the map-first mobile controls, direct layer dragging, and white-background suppression with real property drawings.
 
 ---
 
@@ -13,13 +13,13 @@ Publish the meter-based layer and object update, then field-test calibration and
 ## 2026-10-02
 
 Done:
-Built a shared meter coordinate system, floor-aware image layers, calibration, editable point/line/area objects, categories, photos, filtering, and mapped leveling points.
+Built a shared meter coordinate system, floor-aware image layers, calibration, editable point/line/area objects, categories, photos, filtering, mapped leveling points, and a map-first mobile workspace.
 
 Learned:
 Floor membership and measured height must remain separate, while every image and object uses the same property-local horizontal coordinates.
 
 Next:
-Field-test layer placement, calibration, and object editing with real maps and floor plans on a phone.
+Field-test direct layer placement, compact map controls, and object editing with real maps and floor plans on a phone.
 
 Open Questions:
 How should a future GPS anchor and multi-device synchronization expose uncertainty and conflicts?
