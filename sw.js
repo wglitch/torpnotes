@@ -1,4 +1,4 @@
-const CACHE_NAME = "torpnotes-pwa-v3";
+const CACHE_NAME = "torpnotes-pwa-v4";
 const SHELL = [
   "./",
   "./index.html",
@@ -8,6 +8,7 @@ const SHELL = [
   "./icon.svg",
   "./vendor/leaflet.css",
   "./vendor/leaflet.js",
+  "./vendor/lucide.min.js",
   "./vendor/images/layers.png",
   "./vendor/images/layers-2x.png"
 ];

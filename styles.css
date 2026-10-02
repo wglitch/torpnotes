@@ -30,19 +30,20 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .brandMark { align-items: center; background: #f5f6f7; border-radius: 5px; color: var(--accent); display: flex; font-size: 21px; font-weight: 850; height: 38px; justify-content: center; width: 38px; }
 .brandBlock strong { display: block; font-size: 17px; line-height: 1.1; }
 .propertyName { background: transparent; border: 0; color: #cbd1d7; display: block; font-size: 12px; margin: 3px 0 0; max-width: 50vw; overflow: hidden; padding: 0; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.topbarActions { align-items: center; display: flex; gap: 10px; position: relative; }
 .storageState { align-items: center; color: #d7dce1; display: flex; font-size: 12px; gap: 7px; }
 .stateDot { background: #73b290; border-radius: 50%; height: 8px; width: 8px; }
 .storageState.saving .stateDot { background: #e3ad55; }
-
-.tabs { align-items: stretch; background: #fff; border-bottom: 1px solid var(--line); display: flex; height: 48px; padding: 0 20px; }
-.tab { background: transparent; border: 0; border-bottom: 3px solid transparent; color: var(--muted); font-size: 14px; font-weight: 700; min-width: 92px; padding: 0 18px; }
-.tab.active { border-bottom-color: var(--accent); color: var(--ink); }
-main, .view { height: calc(100vh - 112px); }
+.topbarMenuButton { align-items: center; background: transparent; border: 1px solid #66717b; border-radius: 4px; color: #fff; display: flex; height: 38px; justify-content: center; padding: 0; width: 38px; }
+.appMenu { background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow); color: var(--ink); display: grid; min-width: 210px; padding: 5px; position: absolute; right: 0; top: 46px; z-index: 1500; }
+.appMenu button, .addToolMenu button { align-items: center; background: transparent; border: 0; color: var(--ink); display: flex; gap: 10px; min-height: 42px; padding: 8px 10px; text-align: left; }
+.appMenu button:hover, .addToolMenu button:hover { background: var(--panel-soft); }
+main, .view { height: calc(100vh - 64px); }
 .view { display: none; }
 .view.active { display: block; }
 
-.mapWorkspace { display: grid; grid-template-columns: minmax(0, 1fr) 330px; height: 100%; position: relative; }
-.mapStage { min-width: 0; position: relative; }
+.mapWorkspace { height: 100%; position: relative; }
+.mapStage { height: 100%; min-width: 0; position: relative; }
 #map { background-color: #e1e5e8; background-image: linear-gradient(#cbd1d6 1px, transparent 1px), linear-gradient(90deg, #cbd1d6 1px, transparent 1px); background-size: 32px 32px; height: 100%; touch-action: none; width: 100%; }
 .emptyMap { align-items: center; background: rgba(242, 244, 246, 0.94); display: flex; inset: 0; justify-content: center; padding: 28px; position: absolute; z-index: 500; }
 .emptyMapInner { max-width: 410px; text-align: center; }
@@ -56,10 +57,14 @@ main, .view { height: calc(100vh - 112px); }
 
 .mapTools { bottom: 14px; display: flex; gap: 8px; left: 14px; position: absolute; z-index: 610; }
 .toolGroup { background: rgba(255,255,255,0.96); border: 1px solid #bcc4cb; border-radius: 5px; box-shadow: 0 3px 12px rgba(31,39,47,0.12); display: flex; padding: 3px; }
-.toolGroup button { background: transparent; border: 0; border-right: 1px solid #e1e4e7; color: var(--dark); font-size: 12px; font-weight: 750; height: 34px; padding: 0 11px; }
+.toolGroup > button { align-items: center; background: transparent; border: 0; border-right: 1px solid #e1e4e7; color: var(--dark); display: flex; height: 38px; justify-content: center; padding: 0; width: 38px; }
 .toolGroup button:last-child { border-right: 0; }
 .toolGroup button.active { background: var(--dark); border-radius: 3px; color: #fff; }
-.buttonIcon { display: none; }
+.toolGroup svg, .topbarMenuButton svg, .iconButton svg, .backButton svg, .statusCycleButton svg { height: 19px; width: 19px; }
+.drawToolGroup { position: relative; }
+.addToolMenu { background: #fff; border: 1px solid var(--line); bottom: 48px; box-shadow: var(--shadow); display: grid; left: 0; min-width: 150px; padding: 5px; position: absolute; }
+.addToolMenu button { border-bottom: 1px solid #eceff1; width: 100%; }
+.addToolMenu button:last-child { border-bottom: 0; }
 .mobileOnly { display: none !important; }
 .drawActions { bottom: 62px; display: flex; gap: 8px; left: 14px; position: absolute; z-index: 610; }
 .mapHint { background: var(--dark); border-radius: 5px; bottom: 70px; color: #fff; font-size: 13px; left: 50%; max-width: calc(100% - 32px); padding: 10px 14px; position: absolute; text-align: center; transform: translateX(-50%); z-index: 610; }
@@ -68,17 +73,21 @@ main, .view { height: calc(100vh - 112px); }
 .floatingPanelHeader { align-items: start; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; margin: -2px 0 10px; padding-bottom: 10px; }
 .floatingPanelHeader h2 { font-size: 18px; margin: 2px 0 0; }
 .layerList { display: grid; gap: 7px; margin-bottom: 12px; }
-.layerRow { align-items: center; background: var(--panel-soft); border: 1px solid var(--line); display: grid; gap: 8px; grid-template-columns: auto minmax(0,1fr) auto; padding: 9px; }
+.layerRow { align-items: center; background: var(--panel-soft); border: 1px solid var(--line); display: grid; gap: 7px; grid-template-columns: auto minmax(0,1fr) auto; padding: 9px; }
 .layerRow.hiddenLayer { opacity: 0.55; }
 .layerVisibility { align-items: center; display: flex; height: 32px; justify-content: center; margin: 0; width: 32px; }
 .layerVisibility input { margin: 0; min-height: 0; width: 17px; }
 .layerMeta { min-width: 0; }
 .layerMeta strong, .layerMeta small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .layerMeta small { color: var(--muted); font-size: 11px; margin-top: 2px; }
-.layerEdit { background: #fff; border: 1px solid #b9c1c8; border-radius: 4px; color: var(--dark); font-size: 12px; height: 32px; padding: 0 10px; }
+.layerActions { display: flex; gap: 2px; }
+.layerAction { align-items: center; background: #fff; border: 1px solid #c7cdd2; color: var(--dark); display: flex; height: 32px; justify-content: center; padding: 0; width: 32px; }
+.layerAction svg { height: 16px; width: 16px; }
 .fullButton { width: 100%; }
 
-.objectPanel, .sessionListPanel { background: var(--panel); border-left: 1px solid var(--line); min-width: 0; overflow: auto; }
+.sessionListPanel { background: var(--panel); border-left: 1px solid var(--line); min-width: 0; overflow: auto; }
+.objectPanel { background: var(--panel); border-left: 1px solid var(--line); bottom: 0; box-shadow: var(--shadow); display: none; min-width: 0; overflow: auto; position: absolute; right: 0; top: 0; width: 330px; z-index: 900; }
+.objectPanel.mobileOpen { display: block; }
 .panelHeading { align-items: center; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; padding: 18px 20px; }
 .panelHeading.compact { padding: 16px 18px; }
 .panelHeading h2 { font-size: 18px; margin: 2px 0 0; }
@@ -90,8 +99,12 @@ main, .view { height: calc(100vh - 112px); }
 .objectRow, .sessionRow { align-items: center; background: transparent; border: 0; border-bottom: 1px solid #eceff1; color: var(--ink); display: flex; gap: 10px; padding: 12px; text-align: left; width: 100%; }
 .objectRow:hover, .sessionRow:hover, .sessionRow.active { background: #f3f5f6; }
 .geometryBadge { align-items: center; background: #e8edf0; border-radius: 4px; color: var(--dark-2); display: flex; flex: 0 0 auto; font-size: 11px; font-weight: 850; height: 27px; justify-content: center; width: 27px; }
+.geometryBadge.heightBadge { background: transparent; font-size: 17px; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
 .statusMarker { --marker-color: var(--blue); background: var(--marker-color); border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px var(--marker-color); flex: 0 0 auto; height: 14px; width: 14px; }
-.statusMarker.todo { border: 0; border-radius: 0; box-shadow: none; clip-path: polygon(50% 0, 100% 100%, 0 100%); filter: drop-shadow(0 0 1px #fff); height: 16px; width: 17px; }
+.statusMarker.todo { background: transparent; border: 0; border-radius: 0; box-shadow: none; height: 17px; position: relative; width: 18px; }
+.statusMarker.todo::before, .statusMarker.todo::after { clip-path: polygon(50% 0, 100% 100%, 0 100%); content: ""; inset: 0; position: absolute; }
+.statusMarker.todo::before { background: #fff; }
+.statusMarker.todo::after { background: var(--marker-color); inset: 3px 3px 2px; }
 .statusMarker.done { border-radius: 2px; opacity: 0.42; }
 .statusMarker.height { background: transparent; border: 0; box-shadow: none; color: var(--marker-color); font-size: 16px; font-weight: 900; height: 18px; line-height: 18px; text-align: center; width: 18px; }
 .statusMarker.height::after { content: "T"; }
@@ -104,6 +117,7 @@ main, .view { height: calc(100vh - 112px); }
 .contentHeader { align-items: end; display: flex; gap: 24px; justify-content: space-between; margin: 0 auto 24px; max-width: 1100px; }
 .contentHeader h1 { font-size: 28px; margin: 4px 0 6px; }
 .contentHeader p { margin: 0; max-width: 660px; }
+.backButton { align-items: center; background: transparent; border: 0; color: var(--muted); display: flex; font-size: 13px; gap: 7px; margin: 0 0 18px; padding: 0; }
 .measureLayout { background: var(--panel); border: 1px solid var(--line); display: grid; grid-template-columns: 300px minmax(0,1fr); margin: 0 auto; max-width: 1100px; min-height: 520px; }
 .sessionListPanel { border-left: 0; border-right: 1px solid var(--line); }
 .measureDetail { min-width: 0; padding: 24px; }
@@ -141,7 +155,7 @@ input[type="checkbox"], input[type="radio"] { min-height: 0; }
 .secondaryButton { background: #fff; border: 1px solid #aeb7bf; color: var(--dark); }
 .dangerButton { background: #fff; border: 1px solid #d3aaa6; color: var(--red); }
 .dangerTextButton { background: transparent; border: 0; color: var(--red); padding: 8px 0; }
-.iconButton { background: transparent; border: 0; color: var(--muted); font-size: 27px; height: 38px; padding: 0; width: 38px; }
+.iconButton { align-items: center; background: transparent; border: 0; color: var(--muted); display: flex; font-size: 27px; height: 38px; justify-content: center; padding: 0; width: 38px; }
 .buttonRow { display: flex; flex-wrap: wrap; gap: 10px; }
 .finePrint { font-size: 12px; margin: 12px 0 0 !important; }
 
@@ -156,6 +170,20 @@ dialog form { display: grid; gap: 16px; padding: 22px; }
 .dialogActions.end { display: flex; justify-content: end; }
 .choiceField { border: 0; margin: 0; padding: 0; }
 .choiceField legend { color: #3f4851; font-size: 12px; font-weight: 750; margin-bottom: 7px; }
+.fieldLabel { color: #3f4851; display: block; font-size: 12px; font-weight: 750; margin-bottom: 7px; }
+.statusCycleButton { align-items: center; background: var(--panel-soft); border: 1px solid var(--line); color: var(--ink); display: flex; gap: 10px; min-height: 42px; padding: 8px 11px; width: 100%; }
+.statusCycleButton > span:nth-child(2) { flex: 1; font-weight: 800; text-align: left; }
+.statusCycleButton > svg { color: var(--muted); }
+.advancedSettings { border: 1px solid var(--line); }
+.advancedSettings summary { align-items: center; color: var(--dark); cursor: pointer; display: flex; gap: 9px; font-size: 13px; font-weight: 800; list-style: none; min-height: 44px; padding: 0 12px; }
+.advancedSettings summary::-webkit-details-marker { display: none; }
+.advancedSettings summary .disclosureIcon { margin-left: auto; transition: transform 120ms ease; }
+.advancedSettings[open] summary .disclosureIcon { transform: rotate(180deg); }
+.advancedSettings .fieldGrid { border-top: 1px solid var(--line); padding: 13px; }
+.heightSummary { background: #edf2f5; border-left: 4px solid var(--blue); padding: 13px 14px; }
+.heightSummary strong, .heightSummary span { display: block; }
+.heightSummary strong { font-size: 22px; margin-bottom: 5px; }
+.heightSummary span { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .segmented { display: grid; grid-template-columns: repeat(3,1fr); }
 .segmented label { position: relative; }
 .segmented input { height: 1px; opacity: 0; position: absolute; width: 1px; }
@@ -183,18 +211,23 @@ dialog form { display: grid; gap: 16px; padding: 22px; }
 .photoDialog { background: transparent; box-shadow: none; height: calc(100vh - 24px); max-height: none; max-width: none; width: calc(100vw - 24px); }
 .photoDialog img { height: 100%; object-fit: contain; width: 100%; }
 .photoClose { background: rgba(32,38,45,0.86); border: 0; border-radius: 50%; color: #fff; font-size: 25px; height: 42px; position: absolute; right: 12px; top: 12px; width: 42px; }
-.toast { background: var(--dark); border-radius: 5px; bottom: 18px; color: #fff; font-size: 13px; left: 50%; opacity: 0; padding: 11px 15px; pointer-events: none; position: fixed; transform: translate(-50%,12px); transition: opacity 160ms ease, transform 160ms ease; z-index: 2000; }
-.toast.visible { opacity: 1; transform: translate(-50%,0); }
+.toast { align-items: center; background: var(--dark); border-radius: 5px; bottom: 18px; color: #fff; display: flex; font-size: 13px; gap: 14px; left: 50%; opacity: 0; padding: 11px 15px; pointer-events: none; position: fixed; transform: translate(-50%,12px); transition: opacity 160ms ease, transform 160ms ease; z-index: 2000; }
+.toast.visible { opacity: 1; pointer-events: auto; transform: translate(-50%,0); }
+.toast button { background: transparent; border: 0; color: #fff; font-size: 12px; font-weight: 850; padding: 3px; text-decoration: underline; }
 
 .torp-marker { --marker-color: var(--blue); background: var(--marker-color); border: 4px solid #fff; border-radius: 50%; box-shadow: 0 1px 5px rgba(20,27,33,0.5); display: block; height: 22px; width: 22px; }
-.torp-marker.todo { border: 3px solid #fff; border-radius: 0; clip-path: polygon(50% 0, 100% 100%, 0 100%); filter: drop-shadow(0 1px 3px rgba(20,27,33,0.55)); height: 24px; width: 25px; }
+.torp-marker.todo { background: transparent; border: 0; border-radius: 0; box-shadow: none; height: 24px; position: relative; width: 25px; }
+.torp-marker.todo::before, .torp-marker.todo::after { clip-path: polygon(50% 0, 100% 100%, 0 100%); content: ""; inset: 0; position: absolute; }
+.torp-marker.todo::before { background: #fff; filter: drop-shadow(0 1px 3px rgba(20,27,33,0.55)); }
+.torp-marker.todo::after { background: var(--marker-color); inset: 4px 4px 3px; }
 .torp-marker.done { border-radius: 2px; opacity: 0.48; }
-.torp-marker.height { align-items: center; background: rgba(255,255,255,0.9); border: 2px solid #fff; border-radius: 2px; color: var(--marker-color); display: flex; font-size: 19px; font-weight: 950; height: 25px; justify-content: center; line-height: 1; width: 25px; }
+.torp-marker.height { align-items: center; background: transparent; border: 0; border-radius: 0; box-shadow: none; color: var(--marker-color); display: flex; font-size: 18px; font-weight: 950; height: 20px; justify-content: center; line-height: 1; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; width: 20px; }
 .torp-marker.height::after { content: "T"; }
 .leaflet-interactive.object-done { opacity: 0.42; }
 .leaflet-interactive.object-info { stroke: var(--blue); }
 .leaflet-interactive.object-todo { stroke: var(--amber); }
 .vertexHandle { background: #fff; border: 3px solid var(--accent); border-radius: 50%; }
+.draftVertex { background: var(--accent); border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px var(--accent); }
 .calibrationPoint { background: var(--accent); border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px var(--accent); }
 .hidden { display: none !important; }
 .srOnly { clip: rect(0,0,0,0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; }
@@ -203,24 +236,21 @@ dialog form { display: grid; gap: 16px; padding: 22px; }
   body { overflow: hidden; position: fixed; width: 100%; }
   .topbar { height: 60px; padding: 0 14px; }
   .storageState span:last-child { display: none; }
-  .tabs { height: 46px; justify-content: stretch; padding: 0; position: sticky; top: 0; z-index: 1200; }
-  .tab { flex: 1; min-width: 0; padding: 0 8px; }
-  main, .view { height: calc(100dvh - 106px); }
+  main, .view { height: calc(100dvh - 60px); }
   .mapWorkspace { display: block; overflow: hidden; }
   .mapStage { height: 100%; min-height: 0; }
   .objectPanel { border: 1px solid var(--line); bottom: 8px; box-shadow: var(--shadow); display: none; left: 8px; max-height: 54%; min-height: 0; position: absolute; right: 8px; z-index: 900; }
   .objectPanel.mobileOpen { display: block; }
   .mobileOnly { display: flex !important; }
-  .buttonIcon { align-items: center; display: flex; font-size: 19px; height: 100%; justify-content: center; width: 100%; }
-  .buttonLabel { display: none; }
   .levelBar { display: none; left: auto; max-width: 190px; right: 60px; top: 10px; transform: none; }
   .levelBar.open { display: flex; flex-direction: column; }
   .levelBar button { padding: 0 12px; text-align: left; width: 100%; }
   .mapTools { bottom: 0; display: block; left: 0; pointer-events: none; right: 0; top: 0; }
   .toolGroup { display: flex; flex-direction: column; padding: 3px; pointer-events: auto; position: absolute; top: 10px; }
-  .drawToolGroup { left: 10px; top: 84px; }
+  .drawToolGroup { bottom: 10px; left: 10px; top: auto; }
+  .drawToolGroup .addToolMenu { bottom: 51px; left: 0; }
   .mapActionGroup { right: 10px; }
-  .toolGroup button { border-bottom: 1px solid #e1e4e7; border-right: 0; height: 43px; padding: 0; width: 43px; }
+  .toolGroup > button { border-bottom: 1px solid #e1e4e7; border-right: 0; height: 43px; padding: 0; width: 43px; }
   .toolGroup button:last-child { border-bottom: 0; }
   .mapActionActive .mapTools { display: none; }
   .mapHint { bottom: auto; font-size: 12px; max-width: calc(100% - 120px); top: 10px; }
@@ -229,7 +259,7 @@ dialog form { display: grid; gap: 16px; padding: 22px; }
   .drawActions .actionLabel { display: none; }
   .mapActionActive .toast { bottom: 82px; }
   .floatingPanel { bottom: 8px; left: 62px; max-height: calc(100% - 16px); right: 62px; top: 8px; width: auto; }
-  .contentView { height: calc(100dvh - 106px); min-height: 0; overflow: auto; padding: 20px 14px 40px; }
+  .contentView { height: calc(100dvh - 60px); min-height: 0; overflow: auto; padding: 20px 14px 40px; }
   .contentHeader { align-items: stretch; display: grid; }
   .contentHeader h1 { font-size: 24px; }
   .measureLayout { display: block; }

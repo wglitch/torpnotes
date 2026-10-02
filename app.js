@@ -1,4 +1,4 @@
-/* global L */
+/* global L, lucide */
 
 const DB_NAME = "torpnotes-local";
 const DB_VERSION = 1;
@@ -47,6 +47,7 @@ let mapImageLayers = new Map();
 let mapObjectLayers = new Map();
 let draftGeometry = [];
 let draftLayer = null;
+let draftVertexMarkers = [];
 let pendingObject = null;
 let editingAttachments = [];
 let attachmentUrls = [];
@@ -59,6 +60,7 @@ let movePointerHandlers = null;
 let readingPlacement = null;
 let filterState = { statuses: new Set(), categories: new Set() };
 let toastTimer = null;
+let dialogStatus = "info";
 const elements = {};
 
 const RotatedImageLayer = L.Layer.extend({
@@ -118,20 +120,23 @@ async function initialize() {
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => false);
   populateStaticChoices();
   await renderAll(true);
+  refreshIcons();
   registerServiceWorker();
 }
 
 function bindElements() {
   const ids = [
-    "property-name-button", "storage-state", "empty-map", "empty-import-button", "level-bar",
+    "property-name-button", "storage-state", "app-menu-button", "app-menu", "empty-map", "empty-import-button", "level-bar",
+    "add-tool-button", "add-tool-menu",
     "level-button", "layer-button", "filter-button", "fit-map-button", "object-panel-button",
-    "close-object-panel", "draw-actions", "cancel-draw-button",
+    "close-object-panel", "draw-actions", "undo-draw-button", "cancel-draw-button",
     "finish-draw-button", "map-hint", "layer-panel", "close-layer-panel", "layer-list",
     "add-layer-button", "object-panel-level", "item-count", "active-filters", "object-list",
     "new-session-button", "session-list", "session-count", "measure-detail", "property-name-input",
     "save-property-button", "export-button", "import-button", "clear-button", "object-dialog",
     "object-form", "object-kind-label", "object-dialog-title", "object-id", "object-title",
-    "object-note", "category-choices", "object-level", "object-z", "object-z-source", "object-color",
+    "object-note", "object-status-section", "status-cycle-button", "status-cycle-marker", "status-cycle-label",
+    "object-category-section", "category-choices", "height-summary", "height-summary-content", "object-advanced", "object-level", "object-z", "object-z-source", "object-color",
     "object-image-input", "attachment-grid", "delete-object-button", "edit-geometry-button",
     "layer-dialog", "layer-form", "layer-dialog-title", "layer-id", "layer-file-field",
     "layer-file-input", "layer-name", "layer-level", "layer-scale", "layer-rotation", "layer-opacity",
@@ -140,26 +145,36 @@ function bindElements() {
     "calibration-summary", "calibration-distance", "filter-dialog", "filter-form", "filter-statuses",
     "filter-categories", "clear-filters-button", "session-dialog", "session-form", "session-name",
     "fix-name", "fix-height", "fix-reading", "instrument-preview", "photo-dialog", "photo-close",
-    "photo-full", "import-file-input", "toast"
+    "photo-full", "import-file-input", "toast", "toast-message", "toast-action"
   ];
   ids.forEach((id) => { elements[toCamel(id)] = document.getElementById(id); });
 }
 
 function bindEvents() {
-  document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
+  elements.appMenuButton.addEventListener("click", () => toggleMenu(elements.appMenu, elements.appMenuButton));
+  elements.addToolButton.addEventListener("click", () => toggleMenu(elements.addToolMenu, elements.addToolButton));
+  document.querySelectorAll("[data-menu-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.menuView)));
+  document.querySelectorAll("[data-menu-action='objects']").forEach((button) => button.addEventListener("click", () => { switchView("map"); elements.layerPanel.classList.add("hidden"); document.querySelector(".objectPanel").classList.add("mobileOpen"); }));
+  document.querySelectorAll("[data-back-map]").forEach((button) => button.addEventListener("click", () => switchView("map")));
   document.querySelectorAll("[data-tool]").forEach((button) => button.addEventListener("click", () => setTool(button.dataset.tool)));
+  document.addEventListener("click", (event) => {
+    if (!elements.appMenu.contains(event.target) && !elements.appMenuButton.contains(event.target)) closeMenu(elements.appMenu, elements.appMenuButton);
+    if (!elements.addToolMenu.contains(event.target) && !elements.addToolButton.contains(event.target)) closeMenu(elements.addToolMenu, elements.addToolButton);
+  });
   elements.propertyNameButton.addEventListener("click", () => switchView("data"));
   elements.emptyImportButton.addEventListener("click", () => openLayerDialog());
   elements.levelButton.addEventListener("click", () => elements.levelBar.classList.toggle("open"));
-  elements.layerButton.addEventListener("click", () => elements.layerPanel.classList.toggle("hidden"));
+  elements.layerButton.addEventListener("click", () => { document.querySelector(".objectPanel").classList.remove("mobileOpen"); elements.layerPanel.classList.toggle("hidden"); });
   elements.closeLayerPanel.addEventListener("click", () => elements.layerPanel.classList.add("hidden"));
   elements.addLayerButton.addEventListener("click", () => openLayerDialog());
   elements.fitMapButton.addEventListener("click", showAll);
   elements.objectPanelButton.addEventListener("click", () => document.querySelector(".objectPanel").classList.add("mobileOpen"));
   elements.closeObjectPanel.addEventListener("click", () => document.querySelector(".objectPanel").classList.remove("mobileOpen"));
+  elements.undoDrawButton.addEventListener("click", undoDraftPoint);
   elements.cancelDrawButton.addEventListener("click", cancelMapAction);
   elements.finishDrawButton.addEventListener("click", finishMapAction);
   elements.objectForm.addEventListener("submit", handleObjectSubmit);
+  elements.statusCycleButton.addEventListener("click", cycleObjectStatus);
   elements.objectImageInput.addEventListener("change", addObjectImages);
   elements.deleteObjectButton.addEventListener("click", deleteCurrentObject);
   elements.editGeometryButton.addEventListener("click", beginGeometryEdit);
@@ -216,6 +231,7 @@ async function renderAll(fit = false) {
   renderSessions();
   renderMeasureDetail();
   elements.emptyMap.classList.toggle("hidden", workspace.layers.length > 0);
+  refreshIcons();
   if (fit) window.setTimeout(fitVisible, 0);
 }
 
@@ -248,8 +264,9 @@ function renderMapLayers() {
   mapImageLayers.forEach((layer) => layer.remove());
   mapImageLayers = new Map();
   visibleLayers().sort((a, b) => (a.order || 0) - (b.order || 0)).forEach((layerData) => {
-    if (!(layerData.blob instanceof Blob)) return;
-    const layer = new RotatedImageLayer(layerData).addTo(map);
+    const displayData = moveLayerState?.layerId === layerData.id ? moveLayerState.preview : layerData;
+    if (!(displayData.blob instanceof Blob)) return;
+    const layer = new RotatedImageLayer(displayData).addTo(map);
     mapImageLayers.set(layerData.id, layer);
   });
 }
@@ -264,7 +281,11 @@ function renderLayerList() {
     <div class="layerRow ${layer.visible ? "" : "hiddenLayer"}">
       <label class="layerVisibility" title="Visa eller dölj"><input data-layer-visible="${escapeHtml(layer.id)}" ${layer.visible ? "checked" : ""} type="checkbox"></label>
       <div class="layerMeta"><strong>${escapeHtml(layer.name)}</strong><small>${escapeHtml(levelName(layer.levelId))} · ${formatScale(layer.metersPerPixel)}${layer.scaleEstimated ? " · ungefärlig" : ""}${layer.locked ? " · låst" : ""}</small></div>
-      <button class="layerEdit" data-layer-edit="${escapeHtml(layer.id)}" type="button">Ändra</button>
+      <div class="layerActions">
+        <button class="layerAction" data-layer-locate="${escapeHtml(layer.id)}" aria-label="Visa ${escapeHtml(layer.name)}" title="Visa lagret" type="button"><i data-lucide="locate-fixed"></i></button>
+        <button class="layerAction" data-layer-recover="${escapeHtml(layer.id)}" aria-label="Centrera ${escapeHtml(layer.name)}" title="Centrera lagret här" type="button"><i data-lucide="crosshair"></i></button>
+        <button class="layerAction" data-layer-edit="${escapeHtml(layer.id)}" aria-label="Ändra ${escapeHtml(layer.name)}" title="Ändra lagret" type="button"><i data-lucide="pencil"></i></button>
+      </div>
     </div>`).join("");
   elements.layerList.querySelectorAll("[data-layer-visible]").forEach((input) => input.addEventListener("change", async () => {
     const layer = workspace.layers.find((candidate) => candidate.id === input.dataset.layerVisible);
@@ -274,7 +295,10 @@ function renderLayerList() {
     renderMapLayers();
     renderLayerList();
   }));
+  elements.layerList.querySelectorAll("[data-layer-locate]").forEach((button) => button.addEventListener("click", () => zoomToLayer(workspace.layers.find((layer) => layer.id === button.dataset.layerLocate))));
+  elements.layerList.querySelectorAll("[data-layer-recover]").forEach((button) => button.addEventListener("click", () => recoverLayer(workspace.layers.find((layer) => layer.id === button.dataset.layerRecover))));
   elements.layerList.querySelectorAll("[data-layer-edit]").forEach((button) => button.addEventListener("click", () => openLayerDialog(workspace.layers.find((layer) => layer.id === button.dataset.layerEdit))));
+  refreshIcons();
 }
 
 function renderMapObjects() {
@@ -327,8 +351,8 @@ function renderObjectList() {
   }
   elements.objectList.innerHTML = items.map((item) => `
     <button class="objectRow" data-item-id="${escapeHtml(item.id)}" type="button">
-      <span class="geometryBadge">${geometrySymbol(item.geometryType, item.kind)}</span><span class="statusMarker ${escapeHtml(item.status)} ${item.kind === "height" ? "height" : ""}" style="--marker-color:${itemSystemColor(item)}"></span>
-      <span class="rowText"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(statusLabel(item.status))}${item.categories.length ? ` · ${item.categories.map(categoryName).join(", ")}` : ""}${Number.isFinite(item.z) ? ` · z ${formatNumber(item.z)}` : ""}</small></span>
+      ${item.kind === "height" ? '<span class="geometryBadge heightBadge">T</span>' : `<span class="geometryBadge">${geometrySymbol(item.geometryType)}</span><span class="statusMarker ${escapeHtml(item.status)}" style="--marker-color:${itemSystemColor(item)}"></span>`}
+      <span class="rowText"><strong>${escapeHtml(item.title)}</strong><small>${item.kind === "height" ? "Höjdpunkt" : escapeHtml(statusLabel(item.status))}${item.categories.length ? ` · ${item.categories.map(categoryName).join(", ")}` : ""}${Number.isFinite(item.z) ? ` · z ${formatNumber(item.z)}` : ""}</small></span>
     </button>`).join("");
   elements.objectList.querySelectorAll("[data-item-id]").forEach((button) => button.addEventListener("click", () => {
     const item = workspace.items.find((candidate) => candidate.id === button.dataset.itemId);
@@ -367,6 +391,7 @@ function renderMeasureDetail() {
   document.getElementById("reading-form").addEventListener("submit", addReading);
   elements.measureDetail.querySelectorAll("[data-delete-reading]").forEach((button) => button.addEventListener("click", () => deleteReading(button.dataset.deleteReading)));
   elements.measureDetail.querySelectorAll("[data-reading-map]").forEach((button) => button.addEventListener("click", () => handleReadingMap(session.id, button.dataset.readingMap)));
+  refreshIcons();
 }
 
 function handleMapClick(event) {
@@ -400,12 +425,16 @@ function setTool(tool) {
     showToast("Välj ett plan innan du ritar.");
     return;
   }
+  closeMenu(elements.addToolMenu, elements.addToolButton);
   clearTransientMapState();
   activeTool = tool;
   document.querySelectorAll("[data-tool]").forEach((button) => button.classList.toggle("active", button.dataset.tool === tool));
   const drawing = tool === "line" || tool === "polygon";
   elements.drawActions.classList.toggle("hidden", !drawing);
+  elements.undoDrawButton.classList.toggle("hidden", !drawing);
+  elements.finishDrawButton.classList.toggle("hidden", !drawing);
   elements.finishDrawButton.disabled = true;
+  elements.undoDrawButton.disabled = true;
   elements.mapHint.classList.toggle("hidden", tool === "select");
   elements.mapHint.textContent = tool === "point" ? "Tryck där punkten ska ligga." : tool === "line" ? "Tryck ut linjens brytpunkter och välj Klar." : tool === "polygon" ? "Tryck ut områdets hörn och välj Klar." : "";
   map.getContainer().style.cursor = tool === "select" ? "grab" : "crosshair";
@@ -415,10 +444,21 @@ function setTool(tool) {
 
 function renderDraft() {
   if (draftLayer) draftLayer.remove();
+  draftVertexMarkers.forEach((marker) => marker.remove());
+  draftVertexMarkers = [];
   const coordinates = draftGeometry.map((point) => [point.y, point.x]);
   if (activeTool === "polygon" && coordinates.length > 1) draftLayer = L.polygon(coordinates, { color: "#b34c3d", fillOpacity: 0.15, dashArray: "6 4", interactive: false }).addTo(map);
   else draftLayer = L.polyline(coordinates, { color: "#b34c3d", weight: 3, dashArray: "6 4", interactive: false }).addTo(map);
+  draftVertexMarkers = draftGeometry.map((point) => L.marker([point.y, point.x], { icon: L.divIcon({ className: "draftVertex", iconSize: [14, 14], iconAnchor: [7, 7] }), interactive: false, zIndexOffset: 1000 }).addTo(map));
   elements.finishDrawButton.disabled = activeTool === "polygon" ? draftGeometry.length < 3 : draftGeometry.length < 2;
+  elements.undoDrawButton.disabled = draftGeometry.length === 0;
+  elements.mapHint.textContent = `${activeTool === "polygon" ? "Område" : "Linje"} · ${draftGeometry.length} ${draftGeometry.length === 1 ? "punkt" : "punkter"}`;
+}
+
+function undoDraftPoint() {
+  if (!draftGeometry.length || !["line", "polygon"].includes(activeTool)) return;
+  draftGeometry.pop();
+  renderDraft();
 }
 
 function finishMapAction() {
@@ -450,6 +490,8 @@ function cancelMapAction() {
 function clearTransientMapState() {
   if (draftLayer) draftLayer.remove();
   draftLayer = null;
+  draftVertexMarkers.forEach((marker) => marker.remove());
+  draftVertexMarkers = [];
   draftGeometry = [];
   clearCalibrationMarkers();
   calibration = null;
@@ -457,8 +499,9 @@ function clearTransientMapState() {
 }
 
 function syncToolUi() {
-  document.querySelectorAll("[data-tool]").forEach((button) => button.classList.toggle("active", button.dataset.tool === activeTool));
+  elements.addToolButton.classList.toggle("active", ["point", "line", "polygon"].includes(activeTool));
   elements.drawActions.classList.toggle("hidden", !["line", "polygon", "edit", "moveLayer"].includes(activeTool));
+  elements.undoDrawButton.classList.toggle("hidden", !["line", "polygon"].includes(activeTool));
   elements.mapHint.classList.toggle("hidden", activeTool === "select");
   map.getContainer().style.cursor = activeTool === "select" ? "grab" : "crosshair";
   refreshMobileChrome();
@@ -471,6 +514,7 @@ function refreshMobileChrome() {
 function openObjectDialog(item = null) {
   const source = item || pendingObject;
   if (!source) return;
+  const isHeight = source.kind === "height";
   releaseAttachmentUrls();
   elements.objectForm.reset();
   elements.objectId.value = item?.id || "";
@@ -480,17 +524,72 @@ function openObjectDialog(item = null) {
   elements.objectZ.value = Number.isFinite(item?.z) ? formatInputNumber(item.z) : "";
   elements.objectZSource.value = item?.zSource || "unknown";
   elements.objectColor.value = item?.color || "#356b8c";
-  document.querySelector(`input[name="object-status"][value="${item?.status || "info"}"]`).checked = true;
+  dialogStatus = item?.status || "info";
+  renderStatusCycle();
   const categories = new Set(item?.categories || []);
   elements.categoryChoices.querySelectorAll("[data-object-category]").forEach((input) => { input.checked = categories.has(input.dataset.objectCategory); });
   editingAttachments = (item?.attachments || []).map((attachment) => ({ ...attachment }));
-  elements.objectKindLabel.textContent = geometryLabel(source.geometryType);
+  elements.objectKindLabel.textContent = isHeight ? "Höjdpunkt" : geometryLabel(source.geometryType);
   elements.objectDialogTitle.textContent = item ? item.title : `Nytt ${geometryLabel(source.geometryType).toLowerCase()}`;
   elements.deleteObjectButton.classList.toggle("hidden", !item);
   elements.editGeometryButton.classList.toggle("hidden", !item);
+  elements.objectStatusSection.classList.toggle("hidden", isHeight);
+  elements.objectCategorySection.classList.toggle("hidden", isHeight);
+  elements.objectAdvanced.classList.toggle("hidden", isHeight);
+  elements.objectAdvanced.open = false;
+  elements.heightSummary.classList.toggle("hidden", !isHeight);
+  if (isHeight) renderHeightSummary(item || source);
   renderAttachments();
   elements.objectDialog.showModal();
+  refreshIcons();
   window.setTimeout(() => elements.objectTitle.focus(), 0);
+}
+
+function renderStatusCycle() {
+  const item = workspace.items.find((candidate) => candidate.id === elements.objectId.value);
+  const checkedCategory = elements.categoryChoices?.querySelector("[data-object-category]:checked")?.dataset.objectCategory;
+  elements.statusCycleLabel.textContent = statusLabel(dialogStatus);
+  elements.statusCycleMarker.className = `statusMarker ${dialogStatus}`;
+  elements.statusCycleMarker.style.setProperty("--marker-color", SYSTEM_COLORS[item?.categories?.[0] || checkedCategory] || SYSTEM_COLORS.other);
+}
+
+function renderHeightSummary(item) {
+  const measurement = findReadingByItemId(item.id);
+  const details = measurement
+    ? `${escapeHtml(measurement.session.name)} · fix ${escapeHtml(measurement.session.fixName)} ${formatMeters(measurement.session.fixHeight)} · råavläsning ${formatMeters(measurement.reading.staffReading)}`
+    : "Inmätt höjdpunkt på marknivån";
+  elements.heightSummaryContent.innerHTML = `<strong>${Number.isFinite(item.z) ? formatMeters(item.z) : "Okänd höjd"}</strong><span>${details}</span>`;
+}
+
+function findReadingByItemId(itemId) {
+  for (const session of workspace.measurements) {
+    const reading = session.readings.find((candidate) => candidate.itemId === itemId);
+    if (reading) return { session, reading };
+  }
+  return null;
+}
+
+async function cycleObjectStatus() {
+  const currentIndex = STATUSES.findIndex((status) => status.id === dialogStatus);
+  const previousStatus = dialogStatus;
+  dialogStatus = STATUSES[(currentIndex + 1) % STATUSES.length].id;
+  renderStatusCycle();
+  const item = workspace.items.find((candidate) => candidate.id === elements.objectId.value);
+  if (!item) return;
+  item.status = dialogStatus;
+  item.updatedAt = nowIso();
+  await saveWorkspace();
+  renderMapObjects();
+  renderObjectList();
+  showToast(`Status: ${statusLabel(dialogStatus)}`, "Ångra", async () => {
+    item.status = previousStatus;
+    item.updatedAt = nowIso();
+    dialogStatus = previousStatus;
+    renderStatusCycle();
+    await saveWorkspace();
+    renderMapObjects();
+    renderObjectList();
+  });
 }
 
 async function handleObjectSubmit(event) {
@@ -505,17 +604,18 @@ async function handleObjectSubmit(event) {
   const existing = workspace.items.find((item) => item.id === elements.objectId.value);
   const source = existing || pendingObject;
   if (!source) return;
+  const isHeight = source.kind === "height";
   const z = parseDecimal(elements.objectZ.value);
   const item = {
     ...source,
     id: existing?.id || newId(),
     title: elements.objectTitle.value.trim(),
     note: elements.objectNote.value.trim(),
-    status: document.querySelector('input[name="object-status"]:checked').value,
-    categories: [...elements.categoryChoices.querySelectorAll("[data-object-category]:checked")].map((input) => input.dataset.objectCategory),
-    levelId: elements.objectLevel.value,
-    z: Number.isFinite(z) ? z : null,
-    zSource: Number.isFinite(z) ? elements.objectZSource.value : "unknown",
+    status: isHeight ? "info" : dialogStatus,
+    categories: isHeight ? [] : [...elements.categoryChoices.querySelectorAll("[data-object-category]:checked")].map((input) => input.dataset.objectCategory),
+    levelId: isHeight ? "site" : elements.objectLevel.value,
+    z: isHeight ? source.z : Number.isFinite(z) ? z : null,
+    zSource: isHeight ? "measured" : Number.isFinite(z) ? elements.objectZSource.value : "unknown",
     color: elements.objectColor.value,
     attachments: editingAttachments,
     relations: existing?.relations || [],
@@ -597,6 +697,8 @@ function beginGeometryEdit() {
   geometryEdit = { itemId: item.id, original: item.geometry.map(copyPoint) };
   activeTool = "edit";
   elements.drawActions.classList.remove("hidden");
+  elements.undoDrawButton.classList.add("hidden");
+  elements.finishDrawButton.classList.remove("hidden");
   refreshMobileChrome();
   elements.finishDrawButton.disabled = false;
   elements.mapHint.textContent = "Dra de röda handtagen. Välj Klar när formen stämmer.";
@@ -735,6 +837,8 @@ function beginCalibration() {
   renderMapLayers();
   renderMapObjects();
   elements.drawActions.classList.remove("hidden");
+  elements.undoDrawButton.classList.add("hidden");
+  elements.finishDrawButton.classList.remove("hidden");
   refreshMobileChrome();
   elements.finishDrawButton.disabled = true;
   elements.mapHint.textContent = "Tryck på två punkter i lagret med ett känt avstånd.";
@@ -794,14 +898,19 @@ function beginLayerMove() {
   if (!layer) return;
   elements.layerDialog.close();
   activeLevelId = layer.levelId;
-  moveLayerState = { layerId: layer.id, original: { x: layer.x, y: layer.y, opacity: layer.opacity } };
-  layer.opacity = Math.min(layer.opacity, 0.62);
+  moveLayerState = {
+    layerId: layer.id,
+    original: { x: layer.x, y: layer.y, opacity: layer.opacity },
+    preview: { ...layer, opacity: Math.min(layer.opacity, 0.62) }
+  };
   activeTool = "moveLayer";
   renderLevels();
   renderMapLayers();
   renderMapObjects();
-  enableDirectLayerDrag(layer);
+  enableDirectLayerDrag(moveLayerState.preview);
   elements.drawActions.classList.remove("hidden");
+  elements.undoDrawButton.classList.add("hidden");
+  elements.finishDrawButton.classList.remove("hidden");
   refreshMobileChrome();
   elements.finishDrawButton.disabled = false;
   elements.mapHint.textContent = "Dra ritningen. Tryck ✓ när den ligger rätt.";
@@ -811,8 +920,10 @@ function beginLayerMove() {
 async function finishLayerMove(save) {
   const layer = workspace.layers.find((candidate) => candidate.id === moveLayerState?.layerId);
   disableDirectLayerDrag();
-  if (layer && !save) Object.assign(layer, moveLayerState.original);
   if (layer && save) {
+    layer.previousTransform = { x: moveLayerState.original.x, y: moveLayerState.original.y };
+    layer.x = moveLayerState.preview.x;
+    layer.y = moveLayerState.preview.y;
     layer.opacity = moveLayerState.original.opacity;
     layer.updatedAt = nowIso();
     await saveWorkspace("Lagrets position är sparad.");
@@ -823,6 +934,34 @@ async function finishLayerMove(save) {
   renderMapLayers();
   renderLayerList();
   renderMapObjects();
+}
+
+function zoomToLayer(layer) {
+  if (!layer) return;
+  layer.visible = true;
+  activeLevelId = layer.levelId;
+  renderLevels();
+  renderMapLayers();
+  renderLayerList();
+  map.fitBounds(L.latLngBounds(layerCorners(layer).map((point) => [point.y, point.x])), { padding: [30, 30], animate: false, maxZoom: 7 });
+}
+
+async function recoverLayer(layer) {
+  if (!layer) return;
+  const center = map.getCenter();
+  const corners = layerCorners(layer);
+  const currentCenter = { x: (corners[0].x + corners[2].x) / 2, y: (corners[0].y + corners[2].y) / 2 };
+  layer.previousTransform = { x: layer.x, y: layer.y };
+  layer.x += center.lng - currentCenter.x;
+  layer.y += center.lat - currentCenter.y;
+  layer.visible = true;
+  layer.updatedAt = nowIso();
+  activeLevelId = layer.levelId;
+  await saveWorkspace("Lagret har centrerats i kartvyn.");
+  renderLevels();
+  renderMapLayers();
+  renderLayerList();
+  zoomToLayer(layer);
 }
 
 function enableDirectLayerDrag(layer) {
@@ -969,6 +1108,8 @@ function handleReadingMap(sessionId, readingId) {
   renderMapLayers();
   renderObjectList();
   elements.drawActions.classList.remove("hidden");
+  elements.undoDrawButton.classList.add("hidden");
+  elements.finishDrawButton.classList.add("hidden");
   refreshMobileChrome();
   elements.finishDrawButton.disabled = true;
   elements.mapHint.textContent = `Tryck där ${reading.name} ska placeras.`;
@@ -1078,9 +1219,20 @@ function setSaving(saving) {
 
 function switchView(viewName) {
   if (viewName !== "map") document.querySelector(".objectPanel").classList.remove("mobileOpen");
-  document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === viewName));
+  closeMenu(elements.appMenu, elements.appMenuButton);
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === `view-${viewName}`));
   if (viewName === "map") window.setTimeout(() => { map.invalidateSize(); renderMapLayers(); }, 0);
+}
+
+function toggleMenu(menu, button) {
+  const willOpen = menu.classList.contains("hidden");
+  menu.classList.toggle("hidden", !willOpen);
+  button.setAttribute("aria-expanded", String(willOpen));
+}
+
+function closeMenu(menu, button) {
+  menu.classList.add("hidden");
+  button.setAttribute("aria-expanded", "false");
 }
 
 function visibleLayers() {
@@ -1118,7 +1270,8 @@ function zoomToObject(item) {
 
 function markerIcon(item) {
   const heightClass = item.kind === "height" ? "height" : "";
-  return L.divIcon({ className: "", html: `<span class="torp-marker ${escapeHtml(item.status)} ${heightClass}" style="--marker-color:${itemSystemColor(item)}"></span>`, iconAnchor: [12,12], iconSize: [25,25], tooltipAnchor: [0,-13] });
+  const size = item.kind === "height" ? 20 : 25;
+  return L.divIcon({ className: "", html: `<span class="torp-marker ${escapeHtml(item.status)} ${heightClass}" style="--marker-color:${itemSystemColor(item)}"></span>`, iconAnchor: [size / 2,size / 2], iconSize: [size,size], tooltipAnchor: [0,-13] });
 }
 
 function itemSystemColor(item) {
@@ -1284,5 +1437,16 @@ function dateStamp() { return new Date().toISOString().slice(0, 10); }
 function safeFilename(value) { return value.toLowerCase().replace(/[^a-z0-9åäö]+/gi, "-").replace(/^-|-$/g, "") || "torpnotes"; }
 function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function toCamel(value) { return value.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()); }
-function showToast(message) { window.clearTimeout(toastTimer); elements.toast.textContent = message; elements.toast.classList.add("visible"); toastTimer = window.setTimeout(() => elements.toast.classList.remove("visible"), 2600); }
+function showToast(message, actionLabel = "", action = null) {
+  window.clearTimeout(toastTimer);
+  const openDialog = document.querySelector("dialog[open]");
+  (openDialog || document.body).appendChild(elements.toast);
+  elements.toastMessage.textContent = message;
+  elements.toastAction.textContent = actionLabel;
+  elements.toastAction.classList.toggle("hidden", !actionLabel || !action);
+  elements.toastAction.onclick = action ? async () => { elements.toast.classList.remove("visible"); await action(); } : null;
+  elements.toast.classList.add("visible");
+  toastTimer = window.setTimeout(() => elements.toast.classList.remove("visible"), action ? 5000 : 2600);
+}
+function refreshIcons() { if (typeof lucide !== "undefined") lucide.createIcons({ attrs: { "stroke-width": 2 } }); }
 function registerServiceWorker() { if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("./sw.js").catch((error) => console.warn("Service worker registration failed", error)); }
